@@ -1,0 +1,11 @@
+MANIFEST.in
+NEWS.txt
+README.rst
+setup.py
+src/IntGenIndel.egg-info/PKG-INFO
+src/IntGenIndel.egg-info/SOURCES.txt
+src/IntGenIndel.egg-info/dependency_links.txt
+src/IntGenIndel.egg-info/entry_points.txt
+src/IntGenIndel.egg-info/not-zip-safe
+src/IntGenIndel.egg-info/top_level.txt
+src/intgenindel/__init__.py
