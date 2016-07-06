@@ -37,7 +37,7 @@ def open_genome_file(filename):
     Example:
 
     >Genome1
-    #chr1
+    #chr1 - optional
     1 +2 -3 4 $
     #chr2
     -5 6 $
@@ -50,8 +50,10 @@ def open_genome_file(filename):
     with open(filename) as f:
         for line in f:
             line = line.strip()
+            if not line:
+                continue
             if line.startswith(">"):
-                genome = Genome(line[1:])
+                genome = Genome(line[1:].strip())
                 genome_list[genome.name] = genome
             elif line.startswith("#"):
                 # chromosome; ignore name after, each new line is a new chromosome.
@@ -62,7 +64,7 @@ def open_genome_file(filename):
                 elif line.endswith(CIRCULAR_END_CHR):
                     circular = True
                 else:
-                    raise RuntimeError("Invalid genome file.")
+                    raise RuntimeError("Invalid genome file. Unrecognized line:\n%s" % line)
                 genome.add_chromosome(Chromosome(map(int, line[:-1].strip().split(" ")), circular))
     return genome_list
 
@@ -91,13 +93,17 @@ def open_newick_tree(filename, label_internal_nodes=False):
     if label_internal_nodes:
         idx = 1
         for node in t.preorder_internal_node_iter():
+            if node.label is not None:
+                continue
             if node == t.seed_node:
-                node.label = "Root"
+                continue
             else:
                 node.label = "M%02d" % idx
                 idx += 1
     return t
 
+def write_newick_tree(tree, filename):
+    tree.write_to_path(filename, schema="newick")
 
 def write_mgra2_config(leaf_genomes, tree, filename):
     """

@@ -275,6 +275,7 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
     # dynamic tree (gets updated during the process, cutting the leafs of reconstructed nodes.
     dynamic_tree = Tree(tree)
 
+
     # bottom up: reconstruct closest leaves first;
     reconstruct_closest_first()
     #
@@ -360,24 +361,25 @@ def adjacencies_from_median(label, reconstructed_adjacencies, ambiguous_componen
     median_node = search_tree.find_node_with_label(label)
     search_tree.reroot_at_node(median_node)
     leaf_distance = {}
-    for node in search_tree.preorder_node_iter():
-        if node.label == label:
-            leaf_distance[node] = 0
-        else:
-            leaf_distance[node] = node.edge_length + leaf_distance[node.parent_node]
-    leafs_by_traversal = sorted([(leaf.label, leaf_distance[leaf]) for leaf in search_tree.leaf_node_iter()],
-                                key=lambda x: x[1])
 
-    # closest leafs by DCJ distance:
-    # It seems that by traversal works better, specially for higher nodes where DCJ distance starts to be
-    # not so precise due to fragmentation and saturation. I will leave here, since this has to be used in
-    # case the tree does not have weights.
-    # leafs_by_distance = sorted([(leaf.label, dcj.dcj_distance(reconstructed_genome, genomes[leaf.label])) for leaf in
-    #                             search_tree.leaf_node_iter()], key=lambda x: x[1])
+    # try to use edge lengths; if not available, fall back to DCJ distance:
+    # It seems that traversing edge lengths works better, specially for higher nodes where DCJ distance starts to be
+    # not so precise due to fragmentation and saturation.
+    try:
+      for node in search_tree.preorder_node_iter():
+          if node.label == label:
+              leaf_distance[node] = 0
+          else:
+              leaf_distance[node] = node.edge_length + leaf_distance[node.parent_node]
+      sorted_leafs = sorted([(leaf.label, leaf_distance[leaf]) for leaf in search_tree.leaf_node_iter()],
+                                  key=lambda x: x[1])
+    except TypeError:
+      # closest leafs by DCJ distance:
+      sorted_leafs = sorted([(leaf.label, dcj.dcj_distance(reconstructed_genome, genomes[leaf.label])) for leaf in
+                                  search_tree.leaf_node_iter()], key=lambda x: x[1])
 
     # TODO: distance threshold? or just take 3,4 closest genomes:
-    # for leaf_label, dcj_dist in leafs_by_distance[:3]:
-    for leaf_label, dcj_dist in leafs_by_traversal[:3]:
+    for leaf_label, dcj_dist in sorted_leafs[:3]:
         # n = len(genomes[leaf.label].gene_set())
         # if dcj_dist > n/2:
         #     break
@@ -692,6 +694,12 @@ def ancestral_gene_weights(tree, leaf_genomes, node=None):
 
 
 def ancestral_weights(tree, leaf_genomes, one_node, genes):
+
+    # set edge lenghts if not present:
+    for edge in tree.preorder_edge_iter():
+      if edge.length is None:
+        edge.length = 1
+
     anc_weights = {}
     all_nodes = tree.internal_nodes() if one_node is None else [one_node]
     for ancestral in all_nodes:
