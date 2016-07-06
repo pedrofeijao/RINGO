@@ -1,4 +1,5 @@
 #!/usr/bin/env python2
+import pyximport; pyximport.install()
 import argparse
 
 import sys
@@ -50,7 +51,7 @@ if __name__ == '__main__':
     parser.add_argument("-n", "--num_genes", type=int, default=100, help="Number of genes in the root genome.")
     parser.add_argument("-c", "--num_chr", type=int, default=5, help="Number of chromosomes in the root genome.")
     parser.add_argument("-o", "--output", type=str, default="sim", help="Name of the output folder.")
-    parser.add_argument("-i",    "--indel", type=float, default=0.0, help="Percentage of indels")
+    parser.add_argument("-i",    "--indel", type=float, default=0.0, help="Percentage of indels, from 0 to 1.0")
     parser.add_argument("--indel_length", type=int, default=5, help="Maximum size of indel event in genes.")
     scaling = parser.add_mutually_exclusive_group(required=False)
     scaling.add_argument("-r", "--rate", type=float, default=1, help="Multiplier on the input tree number of events.")

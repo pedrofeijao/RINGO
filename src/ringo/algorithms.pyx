@@ -172,13 +172,14 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
             ambiguous_components.extend(ambiguous)
             reconstructed_adjacencies.update(max_adj)
 
-        s = 1
-        for n in [len(comp['c']) / 2 for comp in ambiguous_components]:
-            s *= math.factorial(2 * n) // math.factorial(n + 1) // math.factorial(n)
-        print "Possible genomes:", s
+        # Count all possible ways of "completing" the genome:
+        # s = 1
+        # for n in [len(comp['c']) / 2 for comp in ambiguous_components]:
+        #     s *= math.factorial(2 * n) // math.factorial(n + 1) // math.factorial(n)
+        # print "Possible genomes:", s
 
-        # 4.5 = solve IG median to add more adjacencies:
-        if solve_median and label != "Root":
+        # 4.5 = solve IG median to add more adjacencies, if not at the root:
+        if solve_median and node != dynamic_tree.seed_node:
             reconstructed_adjacencies, ambiguous_components = adjacencies_from_median(
                 label, reconstructed_adjacencies, ambiguous_components, dynamic_tree, genomes)
 

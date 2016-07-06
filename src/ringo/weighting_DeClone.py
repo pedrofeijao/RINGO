@@ -1,11 +1,13 @@
 #!/usr/bin/env python2
+import pyximport; pyximport.install()
 import argparse
 
 import os
 import subprocess
 import tempfile
-
 import file_ops
+import ConfigParser
+
 
 nhxFileOut = './nhx_tree'
 
@@ -198,6 +200,13 @@ def findAdjacencies(speciesHash):
 
 def deCloneProbabilities(extantAdjacencies, kT, listOfInternalNodes, treefile):
     print "Compute probabilities with DeClone..."
+
+    # read DeClone location:
+    config = ConfigParser.ConfigParser()
+    path = os.path.dirname(os.path.realpath(__file__))
+    config.readfp(open(os.path.join(path,'ringo.cfg')))
+    declone = config.get("Paths", "declone")
+
     adjacenciesPerNode = {}
     singleLeafAdj = {}
     extantWeightedAdjacencies = {}
@@ -212,7 +221,7 @@ def deCloneProbabilities(extantAdjacencies, kT, listOfInternalNodes, treefile):
                 extantWeightedAdjacencies[node] = adjset
     for adjacency in extantAdjacencies:
         # produce list of extant adjacencies for declone
-        path = os.path.dirname(os.path.realpath(__file__))
+
         tmpfile = tempfile.NamedTemporaryFile(
             delete=False)  # create a temporary named file (appears with a arbitrary name in the directory)
         species = extantAdjacencies[adjacency]
@@ -220,9 +229,9 @@ def deCloneProbabilities(extantAdjacencies, kT, listOfInternalNodes, treefile):
             tmpfile.write(spec[0] + " " + spec[0] + "\n")
         tmpfile.seek(0)  # go to the beginning of the tmpfile
 
-        command = 'DeClone -t1 ' + treefile + ' -t2 ' + treefile + ' -a ' + tmpfile.name + ' -i -kT ' + str(kT)
+        command = "%s -t1 %s -t2 %s -a %s -i -kT %f" % (declone, treefile, treefile, tmpfile.name, kT)
         # use declone to compute probs
-        output = subprocess.check_output(command, shell=True, cwd=path)
+        output = subprocess.check_output(command, shell=True)
         # print output
 
         # output is just matrix with probabilities
