@@ -8,7 +8,7 @@ import file_ops
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Generates an adjacency weight file for internal node adjacencies, given a newick tree and the leaf genomes file.")
     parser.add_argument("-i", "--input_genomes", required=True, type=str, help="Leaf genomes file.")
-    parser.add_argument("-tree", type=str, required=True, help="Newick Tree file.")
+    parser.add_argument("-t","--tree", type=str, required=True, help="Newick Tree file.")
     parser.add_argument("-o", "--output", type=str, required=True, help="Output file.")
     param = parser.parse_args()
 
@@ -21,6 +21,3 @@ if __name__ == '__main__':
 
     # write output:
     file_ops.write_ancestral_weights(internalAdjWeight, param.output)
-
-
-

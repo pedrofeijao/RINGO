@@ -25,7 +25,7 @@ if __name__ == '__main__':
     parser.add_argument("-f", "--weight_filter", type=float, default=0,
                         help="Filter cutoff for adjacency weights, smaller weights are removed.")
 
-    parser.add_argument("-bp", default=False, action="store_true", help="Writes PDFs files each with a plot of the Breakpoint Graph between two siblings that was used to reconstruct the parent node.")
+    parser.add_argument("-bp", action="store_true", default=False, help="Writes PDFs files each with a plot of the Breakpoint Graph between two siblings that was used to reconstruct the parent node.")
     # DEBUG:
     parser.add_argument("-a", "--ancestral", type=str, help="Ancestral genomes file, just to test.")
     param = parser.parse_args()

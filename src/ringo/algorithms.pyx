@@ -15,9 +15,9 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
     # helper functions:
     def add_match_nodes(c_a, c_b, label_a, label_b, ancestral_weight, graph, c_type, path_parity=None):
         # build combined cycle:
-        component = collections.deque(reversed(c_a))
-        component.extend(c_b)
-        # TOdo: fix parity of paths, it' wrong now. should add TWO for even path?
+        component = list(reversed(c_a)) + c_b
+        # TOdo: fix parity of paths, Should add TWO zeros for even path and
+        # treat that.
         if c_type == CType.PATH and path_parity == 1:
             # pass
             component.append(0)
@@ -35,7 +35,8 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
 
             # create edge, if there is some weight:
             if w > 0:
-                graph.add_edge(label_a, label_b, weight=w, max_adj=max_adj, component=component, c_type=c_type)
+                graph.add_edge(label_a, label_b, weight=w,
+                               max_adj=max_adj, component=component, c_type=c_type)
 
     def add_path_match_nodes(bp, path_type, label, adj_weight_per_comp, graph):
         odd_path = []
@@ -74,16 +75,12 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
         return comp_list, char
 
     def reconstruct_node(node):
-        # Assuming we have both children of this node are leafs (either originally, or reconstructed).
+        # Assuming we have both children of this node are leafs (either
+        # originally, or reconstructed).
         node1, node2 = node.child_nodes()
 
         label = node.label
         print >> sys.stderr, "\nReconstructing %s ..." % label
-
-        # TODO: Leaf adj weights -> DeClone does not use "singleton adj", that are present in just
-        # one leaf. Can I use this info?
-
-        # TODO: Logging system.
 
         # Rebuild node:
         # 1 - find BP graph:
@@ -92,8 +89,8 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
         # 2 - adjacencies for this node,  from DeClone:
         ancestral_weight = ancestral_adj[label]
 
-        # Todo: reconstructed_adjacencies is a set. It was original a list, but I was getting
-        # repeated adjacencies. HOw can this happen? check;
+        # Todo: Sometimes I get conflicting adjacencies, how can this happen?
+        # check;
         reconstructed_adjacencies = set()
         ambiguous_components = list()
 
@@ -107,15 +104,18 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
                     ext_in_comp[c_type][ext] = idx
 
         # now "distribute adjacencies:
-        adj_weight_per_comp = {c_type: {idx: {} for idx in xrange(len(bp.type_dict[c_type]))} for c_type in CType.all()}
+        adj_weight_per_comp = {c_type: {idx: {} for idx in xrange(
+            len(bp.type_dict[c_type]))} for c_type in CType.all()}
         for adj, w in ancestral_weight.iteritems():
             ext1, ext2 = adj
             for c_type in CType.all():
                 if ext1 in ext_in_comp[c_type]:
-                    adj_weight_per_comp[c_type][ext_in_comp[c_type][ext1]][adj] = w
+                    adj_weight_per_comp[c_type][
+                        ext_in_comp[c_type][ext1]][adj] = w
 
         # 3 - Solve the "easy" cases:
-        max_adjacencies_from_cycles(bp, reconstructed_adjacencies, ambiguous_components, adj_weight_per_comp)
+        max_adjacencies_from_cycles(
+            bp, reconstructed_adjacencies, ambiguous_components, adj_weight_per_comp)
         # print reconstructed_adjacencies
 
         # 4 - Find the matching weights and solve max matching:
@@ -131,16 +131,21 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
                                 c_type=CType.CYCLE)
 
         # Ae to Ao matching:
-        larger_parity_A = add_path_match_nodes(bp, CType.A_PATH, "A", adj_weight_per_comp, comp_match_graph)
+        larger_parity_A = add_path_match_nodes(
+            bp, CType.A_PATH, "A", adj_weight_per_comp, comp_match_graph)
 
         # Be to Bo matching:
-        larger_parity_B = add_path_match_nodes(bp, CType.B_PATH, "B", adj_weight_per_comp, comp_match_graph)
+        larger_parity_B = add_path_match_nodes(
+            bp, CType.B_PATH, "B", adj_weight_per_comp, comp_match_graph)
 
         # SOLVE MAX MATCHING, depending on parity of P_AB:
-        # TODO: right now, easy way: just take the unmatched p_a, p_b and p_ab after the regular matching;
-        # Todo: because of weight 0, there might be more than one unmatched node on each type;
+        # TODO: right now, easy way: build a matching like it is the even P_AB case, and then
+        # just take the unmatched p_a, p_b and p_ab after the regular matching;
+        # Because of weight 0, there might be more than one unmatched node on each type; take the
+        # best; or maybe I should I try to add more triplets than just the
+        # best?
 
-        # Build edges for the mwmatching script:
+        # Build nodes and edges for the mwmatching script:
         # nodes must be intergers, 0 to n.
         idx_to_v = comp_match_graph.nodes()
         v_to_idx = {v: idx for idx, v in enumerate(idx_to_v)}
@@ -149,13 +154,16 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
                  comp_match_graph.edges_iter()]
         # solve:
         mw_mate = mwmatching.maxWeightMatching(edges)
-        # transform in a dictionary where {a:b} for each (a,b) vertex.
-        mate = {idx_to_v[a]: idx_to_v[b] for a, b in enumerate(mw_mate) if b != -1}
+        # transform in a dictionary {a:b} for each (a,b) vertex.
+        mate = {idx_to_v[a]: idx_to_v[b]
+                for a, b in enumerate(mw_mate) if b != -1}
 
         # if odd, we have unmatched AB path('s?)
-        # TODO: because of 0 weight edges, we can do this even for even AB.
+        # TODO: because of 0 weight edges, we can potentially do this also for
+        # even AB.
         if len(bp.type_dict[CType.AB_PATH]) % 2 != 0:
-            find_best_triple(bp, mate, adj_weight_per_comp, reconstructed_adjacencies, ambiguous_components)
+            find_best_triple(bp, mate, adj_weight_per_comp,
+                             reconstructed_adjacencies, ambiguous_components)
 
         # add max weight adjacencies from the best matching:
         seen = set()
@@ -167,7 +175,8 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
             component = data['component']
             max_adj = data['max_adj']
             c_type = data['c_type']
-            uniq_adj, ambiguous = find_unique_adj(list(component), list(max_adj), c_type)
+            uniq_adj, ambiguous = find_unique_adj(
+                list(component), list(max_adj), c_type)
             max_adj.extend(uniq_adj)
             ambiguous_components.extend(ambiguous)
             reconstructed_adjacencies.update(max_adj)
@@ -184,7 +193,8 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
                 label, reconstructed_adjacencies, ambiguous_components, dynamic_tree, genomes)
 
         # 5 - create genome by using the BP algorithms:
-        reconstructed_genome = Genome.from_adjacency_list(label, reconstructed_adjacencies)
+        reconstructed_genome = Genome.from_adjacency_list(
+            label, reconstructed_adjacencies)
 
         # 6 - add or remove InDel genes:
         # add missing genes:
@@ -194,8 +204,10 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
                 reconstructed_genome.add_chromosome(Chromosome([gene]))
 
         # remove indel genes:
-        # TODO: this way is "dynamic"; should we do static, from the initial tree?
-        ancestral_gene_set = build_ancestral_gene_set(Tree(dynamic_tree), genomes, one_node=node)[node.label]
+        # TODO: this way is "dynamic"; should we do static, from the initial
+        # tree?
+        ancestral_gene_set = build_ancestral_gene_set(
+            Tree(dynamic_tree), genomes, one_node=node)[node.label]
 
         no_indel = list(reconstructed_genome.chromosomes)
         for chrom in reconstructed_genome.chromosomes:
@@ -258,7 +270,8 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
                         continue
                     leafs.remove(node2)
                     if node1.edge.length is None or node2.edge.length is None:
-                        dist = dcj.dcj_distance(genomes[node1.label], genomes[node2.label])
+                        dist = dcj.dcj_distance(
+                            genomes[node1.label], genomes[node2.label])
                     else:
                         dist = node1.edge.length + node2.edge.length
                     if dist < smallest_dist:
@@ -273,9 +286,9 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
     # dict to store genomes; starts with the leaves, will get the ancestors.
     genomes = dict(leaf_genomes)
 
-    # dynamic tree (gets updated during the process, cutting the leafs of reconstructed nodes.
+    # dynamic tree (gets updated during the process, cutting the leafs of
+    # reconstructed nodes.
     dynamic_tree = Tree(tree)
-
 
     # bottom up: reconstruct closest leaves first;
     reconstruct_closest_first()
@@ -284,15 +297,14 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
     return {node.label: genomes[node.label] for node in tree.internal_nodes() if node != tree.seed_node}
 
 
-
-
 def max_adjacencies_from_cycles(bp, reconstructed_adjacencies, ambiguous_components, adj_weight_per_comp):
     # AA and BB paths are self-closed, so basically a regular path:
     for c_type in [CType.AA_PATH, CType.BB_PATH, CType.CYCLE, CType.PATH]:
         for idx, component in enumerate(bp.type_dict[c_type]):
             if len(component) < 2:
                 continue
-            # only cycle == 2 can be accepted here; paths only in the find_unique recursion.
+            # only cycle == 2 can be accepted here; paths only in the
+            # find_unique recursion.
             if c_type == CType.CYCLE and len(component) == 2:
                 reconstructed_adjacencies.add(tuple(sorted(component)))
                 continue
@@ -316,34 +328,21 @@ def max_adjacencies_from_cycles(bp, reconstructed_adjacencies, ambiguous_compone
                     add_zero = True
                     component_weights[adj] = w
                 elif adj[0] in comp_set and adj[1] in comp_set:
-                    # if 0 in adj:
-                    #     print "WE GOT ONE!", adj, w
                     component_weights[adj] = w
             if add_zero:
                 component.append(0)
                 c_type = CType.CYCLE
             if len(component_weights) > 0:
-                # print "Components weights:", component_weights
-                # print "COMP:", component
                 max_adj, w = max_weight_ind_set(component, component_weights)
 
-                # for a in max_adj:
-                #     if 0 in a:
-                #         print "AND IT IS ON THE MAX W SOLUTION!!!!"
-                #         tel = a
-
-                # print "Max IS:", max_adj
-                # Now i have to check if there are uniquely defined adjacencies
+                # add uniquely defined adjacencies:
                 find_c_type = c_type
                 if find_c_type in [CType.AA_PATH, CType.BB_PATH]:
                     find_c_type = CType.CYCLE
-                uniq_adj, ambiguous = find_unique_adj(list(component), list(max_adj), find_c_type)
+                uniq_adj, ambiguous = find_unique_adj(
+                    list(component), list(max_adj), find_c_type)
                 max_adj.extend(uniq_adj)
                 ambiguous_components.extend(ambiguous)
-
-                # print "Max IS extended:", max_adj
-                # print "C:", component
-                # print "Max_adj:", max_adj
                 reconstructed_adjacencies.update(max_adj)
             else:
                 ambiguous_components.append({'c': component, 'type': c_type})
@@ -352,11 +351,12 @@ def max_adjacencies_from_cycles(bp, reconstructed_adjacencies, ambiguous_compone
 def adjacencies_from_median(label, reconstructed_adjacencies, ambiguous_components, current_tree, genomes):
     """
     Find the closest leafs, and complete the ambiguous components by trying
-    to minimise distance to this leaf.
+    to minimise distance to these leafs.
     """
 
     # build current genome to then do a BP:
-    reconstructed_genome = Genome.from_adjacency_list(label, reconstructed_adjacencies)
+    reconstructed_genome = Genome.from_adjacency_list(
+        label, reconstructed_adjacencies)
     # closest leafs by traversal:
     search_tree = Tree(current_tree)
     median_node = search_tree.find_node_with_label(label)
@@ -367,23 +367,21 @@ def adjacencies_from_median(label, reconstructed_adjacencies, ambiguous_componen
     # It seems that traversing edge lengths works better, specially for higher nodes where DCJ distance starts to be
     # not so precise due to fragmentation and saturation.
     try:
-      for node in search_tree.preorder_node_iter():
-          if node.label == label:
-              leaf_distance[node] = 0
-          else:
-              leaf_distance[node] = node.edge_length + leaf_distance[node.parent_node]
-      sorted_leafs = sorted([(leaf.label, leaf_distance[leaf]) for leaf in search_tree.leaf_node_iter()],
-                                  key=lambda x: x[1])
+        for node in search_tree.preorder_node_iter():
+            if node.label == label:
+                leaf_distance[node] = 0
+            else:
+                leaf_distance[node] = node.edge_length + \
+                    leaf_distance[node.parent_node]
+        sorted_leafs = sorted([(leaf.label, leaf_distance[leaf]) for leaf in search_tree.leaf_node_iter()],
+                              key=lambda x: x[1])
     except TypeError:
-      # closest leafs by DCJ distance:
-      sorted_leafs = sorted([(leaf.label, dcj.dcj_distance(reconstructed_genome, genomes[leaf.label])) for leaf in
-                                  search_tree.leaf_node_iter()], key=lambda x: x[1])
+        # closest leafs by DCJ distance:
+        sorted_leafs = sorted([(leaf.label, dcj.dcj_distance(reconstructed_genome, genomes[leaf.label])) for leaf in
+                               search_tree.leaf_node_iter()], key=lambda x: x[1])
 
     # TODO: distance threshold? or just take 3,4 closest genomes:
     for leaf_label, dcj_dist in sorted_leafs[:3]:
-        # n = len(genomes[leaf.label].gene_set())
-        # if dcj_dist > n/2:
-        #     break
         bp_outgroup = BPGraph(reconstructed_genome, genomes[leaf_label])
         for p in bp_outgroup.type_dict[CType.PATH]:
             if len(p) % 2 == 0:
@@ -396,10 +394,12 @@ def adjacencies_from_median(label, reconstructed_adjacencies, ambiguous_componen
                         j = list(comp['c']).index(adj[1])
                         if (i - j) % 2 == 1:
                             # ADD ADJ:
-                            rec = set([item for sublist in reconstructed_adjacencies for item in sublist])
+                            rec = set(
+                                [item for sublist in reconstructed_adjacencies for item in sublist])
                             if adj[0] not in rec and adj[1] not in rec:
                                 new_adj = True
-                                uniq_adj, ambig = find_unique_adj(list(comp['c']), [adj], comp['type'])
+                                uniq_adj, ambig = find_unique_adj(
+                                    list(comp['c']), [adj], comp['type'])
                                 uniq_adj.append(adj)
                                 reconstructed_adjacencies.update(uniq_adj)
                                 new_ambiguous.extend(ambig)
@@ -413,12 +413,15 @@ def adjacencies_from_median(label, reconstructed_adjacencies, ambiguous_componen
     return reconstructed_adjacencies, ambiguous_components
 
 # Tree helpers:
+
+
 def set_distance_from_node_to_leaves(in_tree):
     for node in in_tree.postorder_node_iter():
         if node.is_leaf():
             node.d_leaf = 0
         else:
-            node.d_leaf = min([n.d_leaf + n.edge.length for n in node.child_nodes()])
+            node.d_leaf = min(
+                [n.d_leaf + n.edge.length for n in node.child_nodes()])
 
 
 def set_distance_from_node_to_root(in_tree):
@@ -435,41 +438,41 @@ def find_best_triple(bp, mate, adj_weight_per_comp, reconstructed_adjacencies, a
     cdef double best_w, w
 
     def find_unmatched_paths():
-      # find unmatched paths:
-      cdef int idx_a_e, idx_a_o, idx_b_e, idx_b_o
-      idx_a_e = idx_a_o = idx_b_e = idx_b_o = 0
-      a_paths = []
-      ab_paths = []
-      b_paths = []
-      for idx_a, p_a in enumerate(bp.type_dict[CType.A_PATH]):
-          # find the label of A_path, and if even or odd:
-          if len(p_a) % 2 == 0:
-              label_a = "Ae%d" % idx_a_e
-              idx_a_e += 1
-          else:
-              label_a = "Ao%d" % idx_a_o
-              idx_a_o += 1
-          if label_a in mate:
-              continue
-          a_paths.append((idx_a, p_a))
+        # find unmatched paths:
+        cdef int idx_a_e, idx_a_o, idx_b_e, idx_b_o
+        idx_a_e = idx_a_o = idx_b_e = idx_b_o = 0
+        a_paths = []
+        ab_paths = []
+        b_paths = []
+        for idx_a, p_a in enumerate(bp.type_dict[CType.A_PATH]):
+            # find the label of A_path, and if even or odd:
+            if len(p_a) % 2 == 0:
+                label_a = "Ae%d" % idx_a_e
+                idx_a_e += 1
+            else:
+                label_a = "Ao%d" % idx_a_o
+                idx_a_o += 1
+            if label_a in mate:
+                continue
+            a_paths.append((idx_a, p_a))
 
-      for idx_ab, p_ab in enumerate(bp.type_dict[CType.AB_PATH]):
-          if "AB%d" % idx_ab in mate:
-              continue
-          ab_paths.append((idx_ab, p_ab))
+        for idx_ab, p_ab in enumerate(bp.type_dict[CType.AB_PATH]):
+            if "AB%d" % idx_ab in mate:
+                continue
+            ab_paths.append((idx_ab, p_ab))
 
-      for idx_b, p_b in enumerate(bp.type_dict[CType.B_PATH]):
-          # find the label of B_path, and if even or odd:
-          if len(p_b) % 2 == 0:
-              label_b = "Be%d" % idx_b_e
-              idx_b_e += 1
-          else:
-              label_b = "Bo%d" % idx_b_o
-              idx_b_o += 1
-          if label_b in mate:
-              continue
-          b_paths.append((idx_b,p_b))
-      return a_paths, ab_paths, b_paths
+        for idx_b, p_b in enumerate(bp.type_dict[CType.B_PATH]):
+            # find the label of B_path, and if even or odd:
+            if len(p_b) % 2 == 0:
+                label_b = "Be%d" % idx_b_e
+                idx_b_e += 1
+            else:
+                label_b = "Bo%d" % idx_b_o
+                idx_b_o += 1
+            if label_b in mate:
+                continue
+            b_paths.append((idx_b, p_b))
+        return a_paths, ab_paths, b_paths
 
     best_w = -1
     best_adj = None
@@ -485,7 +488,7 @@ def find_best_triple(bp, mate, adj_weight_per_comp, reconstructed_adjacencies, a
 
                 # build adjacency guide:
                 component_weights = {}
-                comp_set = set.union(set(p_a),set(p_ab),set(p_b))
+                comp_set = set.union(set(p_a), set(p_ab), set(p_b))
                 for adj_dict in [adj_weight_per_comp[CType.A_PATH][idx_a], adj_weight_per_comp[CType.B_PATH][idx_b], adj_weight_per_comp[CType.AB_PATH][idx_ab]]:
                     for adj, w in adj_dict.iteritems():
                         if adj[0] in comp_set and adj[1] in comp_set:
@@ -496,7 +499,8 @@ def find_best_triple(bp, mate, adj_weight_per_comp, reconstructed_adjacencies, a
                     component = list(reversed(p_a))
                     component.extend(p_ab)
                     component.extend(p_b)
-                    max_adj, w = max_weight_ind_set(component, component_weights)
+                    max_adj, w = max_weight_ind_set(
+                        component, component_weights)
                     if w > best_w:
                         best_w = w
                         best_adj = max_adj
@@ -504,13 +508,14 @@ def find_best_triple(bp, mate, adj_weight_per_comp, reconstructed_adjacencies, a
 
     # now add the best triple:
     if best_adj is not None:
-        uniq_adj, ambiguous = find_unique_adj(list(best_component), list(best_adj), CType.PATH)
+        uniq_adj, ambiguous = find_unique_adj(
+            list(best_component), list(best_adj), CType.PATH)
         best_adj.extend(uniq_adj)
         ambiguous_components.extend(ambiguous)
         reconstructed_adjacencies.update(best_adj)
 
 
-# find adjacencies: given
+# find unique adjacencies
 def find_unique_adj(comp, adj_list, c_type):
     # if c_type == CType.PATH and len(comp) % 2 == 1:
     #     c_type = CType.CYCLE
@@ -537,11 +542,13 @@ def find_unique_adj_rec(comp, adj_list, c_type):
             unique_adj = []
             ambiguous = []
             if len(comp1) > 0:
-                find_adj, find_ambiguous = find_unique_adj_rec(comp1, list(adj_list), c_type)
+                find_adj, find_ambiguous = find_unique_adj_rec(
+                    comp1, list(adj_list), c_type)
                 unique_adj += find_adj
                 ambiguous += find_ambiguous
             if len(comp2) > 0:
-                find_adj, find_ambiguous = find_unique_adj_rec(comp2, list(adj_list), CType.CYCLE)
+                find_adj, find_ambiguous = find_unique_adj_rec(
+                    comp2, list(adj_list), CType.CYCLE)
                 unique_adj += find_adj
                 ambiguous += find_ambiguous
 
@@ -554,7 +561,7 @@ def find_unique_adj_rec(comp, adj_list, c_type):
 
 def max_weight_ind_set(cycle, weight, parity_filter=True):
     """
-    Given a cycle of extremities (deque, list) and weighted adjacencies/edges (dict (tuple):weight),
+    Given a cycle of extremities  (list) and weighted adjacencies/edges (dict (tuple):weight),
     find the maximum weight set of noncrossing edges.
     :param cycle:
     :param weight:
@@ -567,7 +574,7 @@ def max_weight_ind_set(cycle, weight, parity_filter=True):
         # orient edges and create
         oriented_weight = {}
         for (i, j), w in w.items():
-            if p_filter and (idx[i]-idx[j]) % 2 == 0:
+            if p_filter and (idx[i] - idx[j]) % 2 == 0:
                 continue
             if idx[i] < idx[j]:
                 oriented_weight[(i, j)] = w
@@ -583,10 +590,11 @@ def max_weight_ind_set(cycle, weight, parity_filter=True):
     cdef int index, i, j, k, s, n, curr_node
     cdef double opt1, opt2
     # idx and orient edges:
-    v, out_edges, weight = vertex_idx_and_orient_edges(cycle, weight, parity_filter)
+    v, out_edges, weight = vertex_idx_and_orient_edges(
+        cycle, weight, parity_filter)
 
     # create new nodes, for nodes with more than one edge:
-    curr_node = max(cycle)+1
+    curr_node = max(cycle) + 1
     name = {}
     new_cycle = []
     new_cycle_app = new_cycle.append
@@ -613,7 +621,7 @@ def max_weight_ind_set(cycle, weight, parity_filter=True):
 
     # structs
     MIS = {}
-    T = [None] * (n+1)
+    T = [None] * (n + 1)
     W = {}
     W_MIS = {}
     for edge in sorted(weight.keys(), key=lambda v_s: v[v_s[1]] - v[v_s[0]]):
@@ -626,7 +634,7 @@ def max_weight_ind_set(cycle, weight, parity_filter=True):
             k = j - 1
             while i < k:
                 T[k] = T[k + 1]
-                W[k] = W[k+1]
+                W[k] = W[k + 1]
                 if len(out_edges[cycle[k]]) > 0:
                     l = v[out_edges[cycle[k]][0]]
                     e_prime = (cycle[k], cycle[l])
@@ -636,7 +644,7 @@ def max_weight_ind_set(cycle, weight, parity_filter=True):
                         W[k] = W_MIS[e_prime] + W[l + 1]
                 k -= 1
             MIS[edge].update(T[i + 1])
-            W_MIS[edge] += W[i+1]
+            W_MIS[edge] += W[i + 1]
 
     T[n] = set()
     W = [0] * (n + 1)
@@ -661,8 +669,8 @@ def max_weight_ind_set(cycle, weight, parity_filter=True):
 
     # T[0] has the answer; but we need to go back to "original" vertex names: (because
     # new vertices were added for degree>1 vertices.
-    edges2 = [tuple(sorted((name[i], name[j]))) for i, j in T[0]]
-    return edges2, W[0]
+    edges = [tuple(sorted((name[i], name[j]))) for i, j in T[0]]
+    return edges, W[0]
 
 
 def build_ancestral_gene_set(tree, leaf_genomes, one_node=None):
@@ -678,9 +686,11 @@ def build_ancestral_gene_set(tree, leaf_genomes, one_node=None):
         gene_set_intermediate = {}
         for node in t.postorder_node_iter():
             if node.is_leaf():
-                gene_set_intermediate[node.label] = leaf_genomes[node.label].gene_set()
+                gene_set_intermediate[node.label] = leaf_genomes[
+                    node.label].gene_set()
             else:
-                gene_set_intermediate[node.label] = set.union(*[gene_set_intermediate[child.label] for child in node.child_nodes()])
+                gene_set_intermediate[node.label] = set.union(
+                    *[gene_set_intermediate[child.label] for child in node.child_nodes()])
         # The set for this current node is on the root:
         gene_sets[label] = gene_set_intermediate[t.seed_node.label]
     return gene_sets
@@ -698,8 +708,8 @@ def ancestral_weights(tree, leaf_genomes, one_node, genes):
 
     # set edge lenghts if not present:
     for edge in tree.preorder_edge_iter():
-      if edge.length is None:
-        edge.length = 1
+        if edge.length is None:
+            edge.length = 1
 
     anc_weights = {}
     all_nodes = tree.internal_nodes() if one_node is None else [one_node]
@@ -714,22 +724,28 @@ def ancestral_weights(tree, leaf_genomes, one_node, genes):
         for node in t.postorder_node_iter():
             if node.is_leaf():
                 if genes:
-                    weights[node.label] = {adj: 1 for adj in leaf_genomes[node.label].gene_set()}
+                    weights[node.label] = {
+                        adj: 1 for adj in leaf_genomes[node.label].gene_set()}
                 else:
-                    weights[node.label] = {adj: 1 for adj in leaf_genomes[node.label].adjacency_set()}
+                    weights[node.label] = {
+                        adj: 1 for adj in leaf_genomes[node.label].adjacency_set()}
                 continue
             # weighted sum with the child nodes:
-            d = 1e-5 # avoid division by zero in the presence of zero weight edges
+            d = 0
             all_adj = set()
             children = list(node.child_nodes())
             for child in children:
                 all_adj.update(weights[child.label].iterkeys())
                 d += child.edge.length
+            if d == 0:
+                d == 0.1
             # define weight for each adj from children:
             node_adj_weights = {}
             for adj in all_adj:
-                children_w = [weights[child.label][adj] * (d - child.edge.length) if adj in weights[child.label] else 0 for child in children]
-                node_adj_weights[adj] = sum(children_w)/(d * (len(children)-1))
+                children_w = [weights[child.label][
+                    adj] * (d - child.edge.length) if adj in weights[child.label] else 0 for child in children]
+                node_adj_weights[adj] = sum(
+                    children_w) / (d * (len(children) - 1))
             weights[node.label] = node_adj_weights
 
         # The weights for this current node are on the root:

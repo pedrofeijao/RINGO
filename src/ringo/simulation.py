@@ -255,7 +255,7 @@ if __name__ == '__main__':
     # MGRA2:
     file_ops.write_mgra2_config(leaf_genomes, evolved, MGRA2_CONFIG % output)
 
-    #
+    #TODO: If no indel, also write output for Procar, Pathgroups and GASTS.
     # # == Procar format:
     #
     # # Genomes:
