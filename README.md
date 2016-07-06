@@ -41,7 +41,7 @@ The output folder will be created if not existent already, and the following fil
 
 ### Configuration File
 
-The `config.ini` file has some user configuration options, such as file paths and output names. The default configuration should work without change, and some specific changes are described in more detail in the following sections.
+The `ringo.cfg` file has some user configuration options, such as file paths and output names. The default configuration should work without change, and some specific changes are described in more detail in the following sections.
 
 ### RINGO Usage
 
@@ -55,7 +55,7 @@ Included in RINGO there are many different scripts:
 
 An important step in the algorithm for ancestral reconstruction used by RINGO is the calculation of *adjacency weights* for each ancestral genome in the tree. The weights are real numbers from 0 and 1 that reflect how likely it is for each adjacency (a connection between adjacent genes) to be present in a particular ancestor. 
 
-Included in RINGO, there are two ways of generating ancestral adjacency weights. One is to use [DeClone](https://github.com/yannponty/DeClone) [3]. After installing DeClone, indicate its full path in the `config.ini` file, in the section `[Paths]`. Then, running the `weighting_DeClone.py` as described below will generate a file that can be used by `ringo.py`.
+Included in RINGO, there are two ways of generating ancestral adjacency weights. One is to use [DeClone](https://github.com/yannponty/DeClone) [3]. After installing DeClone, indicate its full path in the `ringo.cfg` file, in the section `[Paths]`. Then, running the `weighting_DeClone.py` as described below will generate a file that can be used by `ringo.py`.
 
 Another way of determining adjacency weights is by using the algorithm proposed in [2]. This is the default way, and if no adjacency file is given to `ringo.py`, it will calculate the adjacency weights with this method. It is also possible to generate an adjacency weights file using the `ancestral_weights.py` script as described below.
 
