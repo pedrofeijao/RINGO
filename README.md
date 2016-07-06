@@ -2,13 +2,13 @@
 Ancestral gene order Reconstruction with INtermediate GenOmes.
 
 ## Synopsis
-RINGO is a software for ancestral reconstruction of gene orders based on 
-[References](#references)
+RINGO is a software for ancestral reconstruction of gene orders based on the concept of Intermediate Genomes `[1,2]`
+([References](#references)). 
 
 ## Installation
-RINGO is implemented in Python 2.7 and [Cython 0.24](http://cython.org). 
+RINGO is implemented in Python 2.7 and [Cython 0.24](http://cython.org). No special installation is needed, other than just cloning or downloading all files in a folder in your computer.
 
-The list of required packages is included in the `requirements.txt` file. 
+The list of required Python packages is included in the `requirements.txt` file. 
 If you already have Python installed, you can install all needed packages with:
 ```
 pip install -r requirements.txt
