@@ -39,6 +39,10 @@ The output folder will be created if not existent already, and the following fil
 * `ringo_genomes_custom_weight.txt`: Ancestral genomes file. Genome names correspond to the internal nodes of the tree.
 * `ringo_tree.nwk`: Newick tree. Should be the same as the input tree, possibly with new labels for the internal nodes if they were empty on the input tree.
 
+#### Examples
+
+`ringo.py -i ../examples/`
+
 ### Configuration File
 
 The `ringo.cfg` file has some user configuration options, such as file paths and output names. The default configuration should work without change, and some specific changes are described in more detail in the following sections.
@@ -170,6 +174,30 @@ optional arguments:
 ### Genome formats
 
 ### Tree format
+
+## License
+
+The MIT License (MIT)
+
+Copyright (c) 2016 Pedro Feijão.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ## References
 
