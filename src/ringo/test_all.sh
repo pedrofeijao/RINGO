@@ -40,7 +40,7 @@ HEREDOC
 ###############################################################################
 _out_folder="test_all_output"
 _n_genomes=6
-_n_genes=500
+_n_genes=200
 _n_chr=1
 _indel_perc=0.2
 _scale=1.5
@@ -70,8 +70,9 @@ _mgra_config=$(awk -F "=" '/sim_mgra_config/ {print $2}' ringo.cfg)
 # Program Functions
 ###############################################################################
 _run_all() {
-  printf "1:$1 \n"
-  printf "2:$2 \n"
+
+  _n_genomes=${1:-$_n_genomes}
+  _n_genes=${2:-$_n_genes}
 
   _simulation
 
@@ -83,12 +84,14 @@ _run_all() {
 
   _run_ringo_declone
 
+  _run_scj
+
   _run_mgra
 
 }
 
 _simulation() {
-  printf "Simulating  a dataset...\n"
+  printf "Simulating a dataset...\n"
   ./simulation.py -n $_n_genes -c $_n_chr -o $_out_folder -s $_n_genomes -i $_indel_perc -sc $_scale -d $_disturb --indel_length $_indel_length
   printf "Done.\n\n"
 }
@@ -125,6 +128,12 @@ _run_ringo_declone() {
   fi
 }
 
+_run_scj() {
+  printf "Running SCJ Small Phylogeny...\n"
+  ./run_scj.py -i $_out_folder/$_leaf_genomes -t $_out_folder/$_sim_tree -o $_out_folder
+  printf "Done.\n\n"
+
+}
 _run_mgra() {
   printf "Trying to run MGRA...\n"
   if command -v $_mgra >/dev/null 2>&1; then

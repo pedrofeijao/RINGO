@@ -47,3 +47,6 @@ class RingoConfig():
 
     def sim_paramfile(self):
         return self.config.get("Filenames", "sim_paramfile")
+
+    def scj_genomes(self):
+        return self.config.get("Filenames", "scj_genomes")

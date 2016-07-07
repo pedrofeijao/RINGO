@@ -16,8 +16,8 @@ if __name__ == '__main__':
     #                     help="Choose random adjacencies in the ambiguous components.")
     # parser.add_argument('-v', '--verbose', action="store_true", default=False)
     # parser.add_argument('-rep', '--repeat', type=int, default=1, help="Number of repeated runs.")
-    parser.add_argument("-i", "--input_genomes", type=str, help="Leaf genomes file.")
-    parser.add_argument("-t", "--tree", type=str, help="Newick Tree file.")
+    parser.add_argument("-i", "--input_genomes", required=True, type=str, help="Leaf genomes file.")
+    parser.add_argument("-t", "--tree", type=str, required=True, help="Newick Tree file.")
     parser.add_argument("-o", "--output", type=str, help="Output folder. If not given, output is written to the same location of the genomes file.")
 
     parser.add_argument("-w", "--adj_weights_file", default="custom_weight", type=str, help="Ancestral adjacency weights file.")
