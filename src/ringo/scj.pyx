@@ -92,7 +92,7 @@ def _scj_small_phylogeny(tree, genome_list, genes=False, root_value=False):
 
     return adj_set
 
-
+#TODO: write a "solve SCJ script."
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
             description="SCJ algorithms.")
@@ -100,7 +100,7 @@ if __name__ == '__main__':
     param = parser.parse_args()
 
     # # open sim:
-    # sim = simulations.Simulation(param.sim_name)
-    # tree, adjacencies = scj_small_phylogeny(sim.n_genes, sim.evolved_tree, sim.leaf_genomes)
+    # sim = simulations.Simulation.open_folder(param.sim_name)
+    # tree, adjacencies = scj_small_phylogeny(sim.n_genes, sim.sim_tree, sim.leaf_genomes)
     #
     # file_ops.write_genomes_to_file(sim.n_genes, {l:Genome(2*sim.n_genes,adj) for l,adj in adjacencies.iteritems()}, simulations.SCJ_OUTPUT % sim.folder )
