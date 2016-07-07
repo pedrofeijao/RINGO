@@ -1,10 +1,11 @@
+__author__ = 'pfeijao'
+
 import glob
 import os
 import math
-
-__author__ = 'pfeijao'
 from model import Genome, Chromosome
 from dendropy import Tree
+import ringo_config
 
 LINEAR_END_CHR = "$"
 CIRCULAR_END_CHR = ")"
@@ -46,6 +47,8 @@ def open_genome_file(filename):
     1 2 3 4 5 7 $
 
     """
+    #TODO: add option for genes as strings. I would have to transform them to numbers, and keep a name dictionary
+    # to go back when necessary.
     genome_list = {}
     with open(filename) as f:
         for line in f:
@@ -118,11 +121,6 @@ def write_mgra2_config(leaf_genomes, tree, filename):
         f.write("\n")
 
 
-ext_weight_filename = './weighted_extant_adjacencies_%f'
-int_weight_filename = './weighted_internal_adjacencies_%f'
-single_leaf_filename = './single_leaf_adjacencies_%f'
-
-
 def write_ancestral_weights(internalWeights, filename):
     """
     Given a dictionary {label:{adj:weight}} (each label is an internal node, pointing to a dictionary of
@@ -159,9 +157,12 @@ def write_declone_weights(singleLeafAdj, internalWeights, extantWeights, kT, fol
     """
     Write the adjacency weights after running DeClone
     """
-    singleLeafAdjOut = os.path.join(folder, single_leaf_filename % kT)
-    internalWeightsOut = os.path.join(folder, int_weight_filename % kT)
-    extantWeightsOut = os.path.join(folder, ext_weight_filename % kT)
+    # read configuration and get filenames:
+    cfg = ringo_config.RingoConfig()
+
+    singleLeafAdjOut = os.path.join(folder, cfg.declone_output_single_leaf(kT))
+    internalWeightsOut = os.path.join(folder, cfg.declone_output_internal_weight(kT))
+    extantWeightsOut = os.path.join(folder, cfg.declone_output_extant_weight(kT))
 
     # ignored adjacencies are written into a special file
     f = open(singleLeafAdjOut, 'w')
