@@ -40,7 +40,7 @@ HEREDOC
 ###############################################################################
 _out_folder="test_all_output"
 _n_genomes=6
-_n_genes=100
+_n_genes=500
 _n_chr=1
 _indel_perc=0.2
 _scale=1.5
@@ -60,10 +60,18 @@ _mgra=$(awk -F "=" '/mgra_path/ {print $2}' ringo.cfg)
 ###############################################################################
 _declone_weights=$(awk -F "=" '/declone_internal_weight/ {print $2}' ringo.cfg)
 
+_sim_tree=$(awk -F "=" '/sim_tree/ {print $2}' ringo.cfg)
+_leaf_genomes=$(awk -F "=" '/sim_leaf_genomes/ {print $2}' ringo.cfg)
+_ancestral_genomes=$(awk -F "=" '/sim_ancestral_genomes/ {print $2}' ringo.cfg)
+_mgra_config=$(awk -F "=" '/sim_mgra_config/ {print $2}' ringo.cfg)
+
+
 ###############################################################################
 # Program Functions
 ###############################################################################
 _run_all() {
+  printf "1:$1 \n"
+  printf "2:$2 \n"
 
   _simulation
 
@@ -87,7 +95,7 @@ _simulation() {
 
 _ringo_weights() {
   printf "Generating RINGO weights ...\n"
-  ./ancestral_weights.py -i $_out_folder/leaf_genomes.txt -t $_out_folder/evolved_tree.nwk -o $_out_folder/$_ringo_weights
+  ./ancestral_weights.py -i $_out_folder/$_leaf_genomes -t $_out_folder/$_sim_tree -o $_out_folder/$_ringo_weights
   printf "Done.\n\n"
 }
 
@@ -95,7 +103,7 @@ _declone_weights() {
   printf "Trying to run DeClone...\n"
   if command -v $_declone >/dev/null 2>&1; then
     printf "DeClone found, generating DeClone weights ...\n"
-    ./weighting_DeClone.py -t $_out_folder/evolved_tree.nwk -m $_out_folder/leaf_genomes.txt -kT $_kt -o $_out_folder
+    ./weighting_DeClone.py -t $_out_folder/$_sim_tree -m $_out_folder/$_leaf_genomes -kT $_kt -o $_out_folder
     printf "Done.\n\n"
   else
     printf "DeClone not found, skipping. If you want to run DeClone, please install it and edit 'ringo.cfg' to indicate the executable path.\n\n"
@@ -105,14 +113,14 @@ _declone_weights() {
 
 _run_ringo() {
   printf "Running RINGO on default weights ...\n"
-  ./ringo.py -i $_out_folder/leaf_genomes.txt -t $_out_folder/evolved_tree.nwk -o $_out_folder -w $_out_folder/$_ringo_weights
+  ./ringo.py -i $_out_folder/$_leaf_genomes -t $_out_folder/$_sim_tree -o $_out_folder -w $_out_folder/$_ringo_weights
   printf "Done.\n\n"
 }
 
 _run_ringo_declone() {
   if command -v $_declone >/dev/null 2>&1; then
     printf "Running RINGO on DeClone weights ...\n"
-    ./ringo.py -i $_out_folder/leaf_genomes.txt -t $_out_folder/evolved_tree.nwk -o $_out_folder -w $_out_folder/${_declone_weights}${_kt}
+    ./ringo.py -i $_out_folder/$_leaf_genomes -t $_out_folder/$_sim_tree -o $_out_folder -w $_out_folder/${_declone_weights}${_kt}
     printf "Done.\n\n"
   fi
 }
@@ -120,7 +128,13 @@ _run_ringo_declone() {
 _run_mgra() {
   printf "Trying to run MGRA...\n"
   if command -v $_mgra >/dev/null 2>&1; then
-    printf "Running MGRA...\n"
+    printf "MGRA found, running...\n"
+
+    mkdir -p $_out_folder/mgra
+    command="$_mgra -g $_out_folder/mgra/$_leaf_genomes -o $_out_folder/mgra -c $_out_folder/mgra/$_mgra_config"
+    printf "$command\n"
+    $command > $_out_folder/mgra/mgra2.out
+
     printf "Done.\n\n"
   else
     printf "MGRA not found, skipping. If you want to run MGRA, please install it and edit 'ringo.cfg' to indicate the executable path.\n\n"
