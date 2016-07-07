@@ -414,6 +414,19 @@ def adjacencies_from_median(label, reconstructed_adjacencies, ambiguous_componen
 
 # Tree helpers:
 
+def tree_diameter(tree):
+  max_leaf_distance = {}
+  for node in tree.postorder_node_iter():
+
+    if node == tree.seed_node:
+      c1, c2 = node.child_nodes()
+      return max_leaf_distance[c1] + c1.edge.length + max_leaf_distance[c2] + c2.edge.length
+    if node.is_leaf():
+      max_leaf_distance[node] = 0
+    else:
+      c1, c2 = node.child_nodes()
+      max_leaf_distance[node] = max(max_leaf_distance[c1] + c1.edge.length, max_leaf_distance[c2] + c2.edge.length)
+
 
 def set_distance_from_node_to_leaves(in_tree):
     for node in in_tree.postorder_node_iter():
@@ -738,7 +751,7 @@ def ancestral_weights(tree, leaf_genomes, one_node, genes):
                 all_adj.update(weights[child.label].iterkeys())
                 d += child.edge.length
             if d == 0:
-                d == 0.1
+                d = 0.1
             # define weight for each adj from children:
             node_adj_weights = {}
             for adj in all_adj:
