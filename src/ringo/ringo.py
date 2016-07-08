@@ -8,7 +8,7 @@ import algorithms
 import plot_bp
 from model import BPGraph, CType, Genome, Chromosome
 from pyx import canvas, style, color
-
+from ringo_config import RingoConfig
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Solves the Small Phylogeny problem with I.G. InDel")
@@ -26,8 +26,6 @@ if __name__ == '__main__':
                         help="Filter cutoff for adjacency weights, smaller weights are removed.")
 
     parser.add_argument("-bp", action="store_true", default=False, help="Writes PDFs files each with a plot of the Breakpoint Graph between two siblings that was used to reconstruct the parent node.")
-    # DEBUG:
-    parser.add_argument("-a", "--ancestral", type=str, help="Ancestral genomes file, just to test.")
     param = parser.parse_args()
 
     leaf_genomes = file_ops.open_genome_file(param.input_genomes)
@@ -40,33 +38,19 @@ if __name__ == '__main__':
         # if weights are given, use: (usually DeClone weights):
         internalAdjWeight = file_ops.open_ancestral_weights(param.adj_weights_file, cutoff=param.weight_filter)
 
-    folder = param.output if param.output is not None else os.path.dirname(param.input_genomes)
     filename = os.path.basename(param.adj_weights_file)
-    out_filename = os.path.join(folder, "ringo_genomes_%s.txt" % filename)
-    tree_out_filename = os.path.join(folder, "ringo_tree.nwk")
-    ancestral = None
-    if param.ancestral is not None:
-        ancestral = file_ops.open_genome_file(param.ancestral)
 
     reconstructed = algorithms.ig_indel_small_phylogeny(leaf_genomes, tree, internalAdjWeight)
 
     # output:
+    cfg = RingoConfig()
+    folder = param.output if param.output is not None else os.path.dirname(param.input_genomes)
+    out_filename = os.path.join(folder, cfg.ringo_output_genomes())
+    tree_out_filename = os.path.join(folder, cfg.ringo_output_tree())
     if not os.path.exists(folder):
         os.mkdir(folder)
     file_ops.write_genomes_to_file(reconstructed, out_filename)
     file_ops.write_newick_tree(tree, tree_out_filename)
-
-    # quick test:
-    if param.ancestral is not None:
-        ancestral = file_ops.open_genome_file(param.ancestral)
-        for label, g in ancestral.iteritems():
-            if label not in reconstructed:
-                continue
-            r = reconstructed[label]
-            print label
-            print "ADJ:", len(g.adjacency_set()), len(r.adjacency_set())
-            print "COMMON:", len(g.common_adjacencies(r))
-            print
 
     # BP graph plot:
     if param.bp:
