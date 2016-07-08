@@ -1,0 +1,15 @@
+{
+    "deletion_p": 0.1, 
+    "disturb": 0.5, 
+    "indel_length": 5, 
+    "indel_perc": 0.2, 
+    "insertion_p": 0.1, 
+    "num_chr": 1, 
+    "num_genes": 500, 
+    "rate": 1, 
+    "rearrangement_p": 0.8, 
+    "reversal_p": 1, 
+    "scale": 1.0, 
+    "translocation_p": 0, 
+    "transposition_p": 0
+}
