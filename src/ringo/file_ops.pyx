@@ -14,6 +14,8 @@ def open_mgra_genomes(folder):
     """
     Opens the genomes of the output of a MGRA2 run, where each genome is a .gen file.
     """
+    # MGRA creates a folder 'genomes' to store all:
+    folder = os.path.join(folder, "genomes")
     genomes = {}
     for file in glob.glob(os.path.join(folder, "*.gen")):
         name = os.path.basename(file)[:-4]
@@ -56,8 +58,9 @@ def open_genome_file(filename):
             if not line:
                 continue
             if line.startswith(">"):
-                genome = Genome(line[1:].strip())
-                genome_list[genome.name] = genome
+                name = line[1:].strip().split(" ")[0]
+                genome = Genome(name)
+                genome_list[name] = genome
             elif line.startswith("#"):
                 # chromosome; ignore name after, each new line is a new chromosome.
                 continue
@@ -70,6 +73,29 @@ def open_genome_file(filename):
                     raise RuntimeError("Invalid genome file. Unrecognized line:\n%s" % line)
                 genome.add_chromosome(Chromosome(map(int, line[:-1].strip().split(" ")), circular))
     return genome_list
+
+
+def open_adjacencies_file(filename):
+    """
+    Open a  file in adjacencies format. Genome identifiers are FASTA-like ">name" lines, and
+    each following line is an adjacency in the format (x,y), where x and y are integers.
+    """
+    genome_list = {}
+    with open(filename) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith(">"):
+              name = line[1:].strip().split(" ")[0]
+              genome = []
+              genome_list[name] = genome
+              continue
+            # read adjacency:
+            genome.append(eval(line))
+    # convert to genomes:
+    return {name:Genome.from_adjacency_list(name, adj_list) for name, adj_list in genome_list.iteritems()}
+
 
 
 def write_genomes_to_file(genomes_dict, filename, write_chr_line=True):
