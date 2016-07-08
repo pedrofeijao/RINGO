@@ -234,9 +234,7 @@ class Simulation:
 
         # Output evolved tree:
         tree = self.sim_tree
-        tree.write_to_path(os.path.join(output, cfg.sim_tree()), schema='newick')
-        tree.write_to_path(os.path.join(output, cfg.sim_basic_tree()), schema='newick',
-                              suppress_rooting=True, suppress_edge_lengths=True)
+        tree.write_to_path(os.path.join(output, cfg.sim_tree()), suppress_rooting=True, schema='newick')
 
         # create genomes:
         self.leaf_genomes = {node.taxon.label: node.value for node in tree.leaf_nodes()}
@@ -286,6 +284,7 @@ class Simulation:
         # Save parameters:
         with open(os.path.join(output,cfg.sim_paramfile()),"w") as f:
             json.dump(param.__dict__, f, sort_keys = True, indent = 4)
+
 
 
 ## Main: Generate simulation
