@@ -43,7 +43,7 @@ _n_genomes=6
 _n_genes=200
 _n_chr=1
 _indel_perc=0.2
-_scale=1.5
+_scale=1
 _disturb=1
 _indel_length=5
 _n_chr=1
@@ -55,25 +55,38 @@ _kt=0.4
 ###############################################################################
 _declone=$(awk -F "=" '/declone_path/ {print $2}' ringo.cfg)
 _mgra=$(awk -F "=" '/mgra_path/ {print $2}' ringo.cfg)
+_physca=$(awk -F "=" '/physca_path/ {print $2}' ringo.cfg)
+
 ###############################################################################
 # Options from config:
 ###############################################################################
 _declone_weights=$(awk -F "=" '/declone_internal_weight/ {print $2}' ringo.cfg)
-
+_declone_extant_weights=$(awk -F "=" '/declone_extant_weight/ {print $2}' ringo.cfg)
 _sim_tree=$(awk -F "=" '/sim_tree/ {print $2}' ringo.cfg)
 _leaf_genomes=$(awk -F "=" '/sim_leaf_genomes/ {print $2}' ringo.cfg)
 _ancestral_genomes=$(awk -F "=" '/sim_ancestral_genomes/ {print $2}' ringo.cfg)
 _mgra_config=$(awk -F "=" '/sim_mgra_config/ {print $2}' ringo.cfg)
-
+_mgra_output=$(awk -F "=" '/mgra_output_folder/ {print $2}' ringo.cfg)
+_scj_genomes=$(awk -F "=" '/scj_genomes/ {print $2}' ringo.cfg)
+_physca_output=$(awk -F "=" '/physca_output_folder/ {print $2}' ringo.cfg)
 
 ###############################################################################
 # Program Functions
 ###############################################################################
 _run_all() {
 
+  # get input:
   _n_genomes=${1:-$_n_genomes}
   _n_genes=${2:-$_n_genes}
 
+  # output locations:
+  _ringo_custom_out="ringo_custom"
+  _ringo_declone_out="ringo_declone"
+
+  # store algorithms for parse:
+  ALGS=()
+
+  # START:
   _simulation
 
   _ringo_weights
@@ -88,22 +101,26 @@ _run_all() {
 
   _run_mgra
 
+  _run_physca
+
+  _parse_sim
+
 }
 
 _simulation() {
-  printf "Simulating a dataset...\n"
+  printf "=== Simulating a dataset...\n"
   ./simulation.py -n $_n_genes -c $_n_chr -o $_out_folder -s $_n_genomes -i $_indel_perc -sc $_scale -d $_disturb --indel_length $_indel_length
   printf "Done.\n\n"
 }
 
 _ringo_weights() {
-  printf "Generating RINGO weights ...\n"
+  printf "=== Generating RINGO weights ...\n"
   ./ancestral_weights.py -i $_out_folder/$_leaf_genomes -t $_out_folder/$_sim_tree -o $_out_folder/$_ringo_weights
   printf "Done.\n\n"
 }
 
 _declone_weights() {
-  printf "Trying to run DeClone...\n"
+  printf "=== Trying to run DeClone...\n"
   if command -v $_declone >/dev/null 2>&1; then
     printf "DeClone found, generating DeClone weights ...\n"
     ./weighting_DeClone.py -t $_out_folder/$_sim_tree -m $_out_folder/$_leaf_genomes -kT $_kt -o $_out_folder
@@ -115,41 +132,62 @@ _declone_weights() {
 }
 
 _run_ringo() {
-  printf "Running RINGO on default weights ...\n"
-  ./ringo.py -i $_out_folder/$_leaf_genomes -t $_out_folder/$_sim_tree -o $_out_folder -w $_out_folder/$_ringo_weights
+  printf "=== Running RINGO on default weights ...\n"
+  ./ringo.py -i $_out_folder/$_leaf_genomes -t $_out_folder/$_sim_tree -o $_out_folder/$_ringo_custom_out -w $_out_folder/$_ringo_weights
+  ALGS+=("RINGO_DEFAULT,ringo,$_ringo_custom_out")
   printf "Done.\n\n"
 }
 
 _run_ringo_declone() {
   if command -v $_declone >/dev/null 2>&1; then
-    printf "Running RINGO on DeClone weights ...\n"
-    ./ringo.py -i $_out_folder/$_leaf_genomes -t $_out_folder/$_sim_tree -o $_out_folder -w $_out_folder/${_declone_weights}${_kt}
+    printf "=== Running RINGO on DeClone weights ...\n"
+    ./ringo.py -i $_out_folder/$_leaf_genomes -t $_out_folder/$_sim_tree -o $_out_folder/$_ringo_declone_out -w $_out_folder/${_declone_weights}${_kt}
+    ALGS+=("RINGO_DECLONE,ringo,$_ringo_declone_out")
     printf "Done.\n\n"
   fi
 }
 
 _run_scj() {
-  printf "Running SCJ Small Phylogeny...\n"
+  printf "=== Running SCJ Small Phylogeny...\n"
   ./run_scj.py -i $_out_folder/$_leaf_genomes -t $_out_folder/$_sim_tree -o $_out_folder
+  ALGS+=("SCJ,scj,$_scj_genomes")
   printf "Done.\n\n"
 
 }
 _run_mgra() {
-  printf "Trying to run MGRA...\n"
+  printf "=== Trying to run MGRA...\n"
   if command -v $_mgra >/dev/null 2>&1; then
     printf "MGRA found, running...\n"
 
-    mkdir -p $_out_folder/mgra
-    command="$_mgra -g $_out_folder/mgra/$_leaf_genomes -o $_out_folder/mgra -c $_out_folder/mgra/$_mgra_config"
+    mkdir -p $_out_folder/$_mgra_output
+    command="$_mgra -g $_out_folder/$_leaf_genomes -o $_out_folder/$_mgra_output -c $_out_folder/$_mgra_config"
     printf "$command\n"
-    $command > $_out_folder/mgra/mgra2.out
-
+    $command > $_out_folder/$_mgra_output/mgra2.out
+    ALGS+=("MGRA,mgra,$_mgra_output")
     printf "Done.\n\n"
   else
     printf "MGRA not found, skipping. If you want to run MGRA, please install it and edit 'ringo.cfg' to indicate the executable path.\n\n"
   fi
 }
 
+_run_physca() {
+  printf "=== Trying to run PhySCA...\n"
+  if command -v python $_physca >/dev/null 2>&1; then
+    printf "PhySca found, running...\n"
+    mkdir -p $_out_folder/$_physca_output
+    command="python $_physca -tree $_out_folder/$_sim_tree -alpha 0.5 -internal $_out_folder/${_declone_weights}${_kt} -extant $_out_folder/${_declone_extant_weights}${_kt} -out $_out_folder/$_physca_output"
+    printf "$command\n"
+    $command > $_out_folder/$_physca_output/physca.out
+    ALGS+=("PhySca,physca,$_physca_output")
+    printf "Done.\n\n"
+  else
+    printf "PhySca not found, skipping. If you want to run PhySca, please install it and edit 'ringo.cfg' to indicate the executable path.\n\n"
+  fi
+}
+
+_parse_sim() {
+  ./parse_sims.py -a ${ALGS[*]} -f test_all_output
+}
 ###############################################################################
 # Main
 ###############################################################################
