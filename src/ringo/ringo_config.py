@@ -2,13 +2,25 @@ import ConfigParser
 import os
 
 
-class RingoConfig():
+class RingoConfig(object):
+    # Singleton pattern, to avoid reading the config file multiple times.
+    __instance = None
+    def __new__(cls):
+        if RingoConfig.__instance is None:
+            instance = object.__new__(cls)
+            instance.config = ConfigParser.ConfigParser()
+            instance.config.readfp(open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'ringo.cfg')))
+            RingoConfig.__instance = instance
+        return RingoConfig.__instance
 
-    def __init__(self):
-        self.config = ConfigParser.ConfigParser()
-        self.config.readfp(
-            open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'ringo.cfg')))
+    # RINGO
+    def ringo_output_tree(self):
+        return self.config.get("Filenames", "ringo_output_tree")
 
+    def ringo_output_genomes(self):
+        return self.config.get("Filenames", "ringo_output_genomes")
+
+    # DeClone
     def declone_path(self):
         return self.config.get("Paths", "declone_path")
 
@@ -24,9 +36,18 @@ class RingoConfig():
     def declone_nhx_tree(self):
         return self.config.get("Filenames", "declone_nhx_tree")
 
+    # MGRA
     def mgra_path(self):
         return self.config.get("Paths", "mgra_path")
 
+    # PhySca
+    def physca_path(self):
+        return self.config.get("Paths", "physca_path")
+
+    def physca_reconstructed_adjacencies(self):
+        return self.config.get("Filenames", "physca_reconstructed_adjacencies")
+
+    # Simulations
     def sim_leaf_genomes(self):
         return self.config.get("Filenames", "sim_leaf_genomes")
 
@@ -35,9 +56,6 @@ class RingoConfig():
 
     def sim_tree(self):
         return self.config.get("Filenames", "sim_tree")
-
-    def sim_basic_tree(self):
-        return self.config.get("Filenames", "sim_basic_tree")
 
     def sim_logfile(self):
         return self.config.get("Filenames", "sim_logfile")
@@ -50,3 +68,6 @@ class RingoConfig():
 
     def scj_genomes(self):
         return self.config.get("Filenames", "scj_genomes")
+
+    def mgra_output_folder(self):
+        return self.config.get("Filenames", "mgra_output_folder")
