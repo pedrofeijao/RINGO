@@ -80,7 +80,7 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
         node1, node2 = node.child_nodes()
 
         label = node.label
-        print >> sys.stderr, "\nReconstructing %s ..." % label
+        print >> sys.stderr, "Reconstructing %s ..." % label
 
         # Rebuild node:
         # 1 - find BP graph:
