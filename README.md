@@ -15,7 +15,8 @@ pip install -r requirements.txt
 ```
 ### Optional Requirements
 
-* [DeClone](https://github.com/yannponty/DeClone), to find ancestral adjacency weights.
+* [DeClone](https://github.com/yannponty/DeClone) [3], to find ancestral adjacency weights.
+
 
 ## Running RINGO
 
@@ -41,7 +42,27 @@ The output folder will be created if not existent already, and the following fil
 
 #### Examples
 
-`ringo.py -i ../examples/`
+Ringo has some example datasets where you can test it. Inside of the `src/ringo` folder, run:
+
+```
+F='../../examples/sim5000'
+./ringo.py -i $F/extant_genomes.txt -t $F/sim_tree.nwk -o $F
+```
+or 
+```
+F='../../examples/sim500'
+./ringo.py -i $F/extant_genomes.txt -t $F/sim_tree.nwk -o $F
+```
+to run simulated datasets with 5000 or 500 genes, respectively.
+
+#### Test pipeline
+
+You can run all scripts on RINGO using the `test_all.sh` script, that simulates a new dataset, generates adjacency weights, using also DeClone [3] if available, runs RINGO with custom weights and with DeClone weights and runs SCJ small phylogeny [4]. It also tries to run two other ancestral reconstruction methods: [MGRA](https://github.com/ablab/mgra) [5] and [PhySca](https://github.com/nluhmann/PhySca) [6]. At the end, it outputs a table with the quality reconstruction results. Just run:
+`./test_all.sh`
+
+You can also choose the number of extant genomes and genes in the simulation:
+`./test_all.sh 6 1000`
+to simulate a dataset with 6 genomes and 1000 genes, and run the test pipeline.
 
 ### Configuration File
 
@@ -78,7 +99,8 @@ SOFTWARE.
 ## References
 
 * [1] Feijão, P. (2015). Reconstruction of ancestral gene orders using intermediate genomes. *BMC Bioinformatics*, **16**(Suppl 14), S3. http://doi.org/10.1186/1471-2105-16-S14-S3
-
 * [2] Feijão, P. and Araújo, E. (2016). Fast ancestral gene order reconstruction of genomes with unequal gene content. *BMC Bioinformatics*, hopefully to appear.
-
 * [3] Chauve, C., Ponty, Y., Zanetti, J.P.P.: Evolution of genes neighborhood within reconciled phylogenies: an ensemble approach. *BMC Bioinformatics* **16**(19), 1–9 (2015)
+* [4] Biller, P., Feijão, P., & Meidanis, J. (2013). Rearrangement-based phylogeny using the single-cut-or-join operation. *IEEE/ACM Transactions on Computational Biology and Bioinformatics*, **10**(1), 122–134. http://doi.org/10.1109/TCBB.2012.168
+* [5] Avdeyev, P., Jiang, S., Aganezov, S., Hu, F., & Alekseyev, M. A. (2016). Reconstruction of ancestral genomes in presence of gene gain and loss. *Journal of Computational Biology*, **23**(3), 150–164. http://doi.org/10.1089/cmb.2015.0160
+* [6] Luhmann, N., Thévenin, A., Ouangraoua, A., Wittler, R., & Chauve, C. (2016). The SCJ Small Parsimony Problem for Weighted Gene Adjacencies. In A. Bourgeois, P. Skums, X. Wan, & A. Zelikovsky (Eds.), *Bioinformatics Research and Applications: 12th International Symposium*, ISBRA 2016, Minsk, Belarus, June 5-8, 2016, Proceedings (pp. 200–210). Cham: Springer International Publishing. http://doi.org/10.1007/978-3-319-38782-6_17
