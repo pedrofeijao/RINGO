@@ -172,7 +172,7 @@ _run_mgra() {
 
 _run_physca() {
   printf "=== Trying to run PhySCA...\n"
-  if command -v python $_physca >/dev/null 2>&1; then
+  if [ -e $_physca ]; then
     printf "PhySca found, running...\n"
     mkdir -p $_out_folder/$_physca_output
     command="python $_physca -tree $_out_folder/$_sim_tree -alpha 0.5 -internal $_out_folder/${_declone_weights}${_kt} -extant $_out_folder/${_declone_extant_weights}${_kt} -out $_out_folder/$_physca_output"
