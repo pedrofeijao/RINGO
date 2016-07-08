@@ -40,10 +40,10 @@ HEREDOC
 ###############################################################################
 _out_folder="test_all_output"
 _n_genomes=6
-_n_genes=200
+_n_genes=100
 _n_chr=1
 _indel_perc=0.2
-_scale=1
+_scale=2
 _disturb=1
 _indel_length=5
 _n_chr=1

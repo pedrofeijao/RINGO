@@ -81,5 +81,5 @@ if __name__ == '__main__':
             # results.append([label] + ["%.1f %%" % (100*algo_res[par]) for par in parameters])
             results.append([label] + [algo_res[par] for par in parameters])
         print "FOLDER:", folder
-        print tabulate(results, headers=["algorithms"] + parameters, tablefmt="fancy_grid", floatfmt=".1f")
+        print tabulate(results, headers=["algorithms"] + parameters, tablefmt="rst", floatfmt=".1f")
         print
