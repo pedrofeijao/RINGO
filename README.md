@@ -58,7 +58,7 @@ to run simulated datasets with 5000 or 500 genes, respectively.
 
 #### Test pipeline
 
-You can run all scripts on RINGO using the `test_all.sh` script, that simulates a new dataset, generates adjacency weights, using also DeClone if available, runs RINGO with custom weights and with DeClone weights and runs SCJ small phylogeny (Biller et al., 2013). It also tries to run two other ancestral reconstruction methods: [MGRA](https://github.com/ablab/mgra) (Avdeyev et al., 2016) and [PhySca](https://github.com/nluhmann/PhySca) (Luhmann et al., 2016). At the end, it outputs a table with the quality reconstruction results. Just run:
+You can run all scripts on RINGO using the `test_all.sh` script, that simulates a new dataset, generates adjacency weights, using also DeClone if available, runs RINGO with custom weights and with DeClone weights and runs SCJ small phylogeny (Biller et al., 2013). It also tries to run two other ancestral reconstruction methods if they are installed: [MGRA](https://github.com/ablab/mgra) (Avdeyev et al., 2016) and [PhySca](https://github.com/nluhmann/PhySca) (Luhmann et al., 2016). At the end, it outputs a table with the quality reconstruction results. Just run:
 ```
 ./test_all.sh
 ```
