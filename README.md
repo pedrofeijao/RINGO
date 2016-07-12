@@ -2,20 +2,21 @@
 Ancestral gene order Reconstruction with INtermediate GenOmes.
 
 ## Synopsis
-RINGO is a software for ancestral reconstruction of gene orders based on the concept of Intermediate Genomes `[1,2]`
-([References](#references)). It also has scripts that simulate new datasets and evaluate the quality of the reconstruction on the simulated datasets, comparing with different software for ancestral reconstruction.
+RINGO is a software for ancestral reconstruction of gene orders based on the concept of Intermediate Genomes (Feijao, 2015; Feijao and Araújo, 2016). It also has scripts that simulate new datasets and evaluate the quality of the reconstruction on the simulated datasets, comparing with different software for ancestral reconstruction.
 
 ## Installation
 RINGO is implemented in Python 2.7 and [Cython 0.24](http://cython.org). No special installation is needed, other than just cloning or downloading all files in a folder in your computer.
 
 The list of required Python packages is included in the `requirements.txt` file. 
-If you already have Python installed, you can install all needed packages with:
+You can download RINGO and install the required packages with:
 ```
+git clone https://github.com/pedrofeijao/RINGO.git
+cd RINGO
 pip install -r requirements.txt
 ```
 ### Optional Requirements
 
-* [DeClone](https://github.com/yannponty/DeClone) [3], to find ancestral adjacency weights.
+* [DeClone](https://github.com/yannponty/DeClone) (Chauve et al., 2015), to find ancestral adjacency weights.
 
 
 ## Running RINGO
@@ -27,7 +28,7 @@ All python scripts can be called with a `-h` option, which shows all the basic u
 
 ### Quick Start
 
-The main script is `ringo.py`, that runs the ancestral reconstruction algorithm described in [2]. 
+The main script is `ringo.py`, that runs the ancestral reconstruction algorithm proposed by Feijao and Araújo (2016). 
 Given a phylogenetic tree and a set of extant genomes at the leaves, RINGO reconstructs contiguous ancestral regions (CARs) 
 in the internal nodes of the tree. The simplest usage is with:
 
@@ -57,11 +58,15 @@ to run simulated datasets with 5000 or 500 genes, respectively.
 
 #### Test pipeline
 
-You can run all scripts on RINGO using the `test_all.sh` script, that simulates a new dataset, generates adjacency weights, using also DeClone [3] if available, runs RINGO with custom weights and with DeClone weights and runs SCJ small phylogeny [4]. It also tries to run two other ancestral reconstruction methods: [MGRA](https://github.com/ablab/mgra) [5] and [PhySca](https://github.com/nluhmann/PhySca) [6]. At the end, it outputs a table with the quality reconstruction results. Just run:
-`./test_all.sh`
+You can run all scripts on RINGO using the `test_all.sh` script, that simulates a new dataset, generates adjacency weights, using also DeClone if available, runs RINGO with custom weights and with DeClone weights and runs SCJ small phylogeny (Biller et al., 2013). It also tries to run two other ancestral reconstruction methods if they are installed: [MGRA](https://github.com/ablab/mgra) (Avdeyev et al., 2016) and [PhySca](https://github.com/nluhmann/PhySca) (Luhmann et al., 2016). At the end, it outputs a table with the quality reconstruction results. Just run:
+```
+./test_all.sh
+```
 
 You can also choose the number of extant genomes and genes in the simulation:
-`./test_all.sh 6 1000`
+```
+./test_all.sh 6 1000
+```
 to simulate a dataset with 6 genomes and 1000 genes, and run the test pipeline.
 
 ### Configuration File
