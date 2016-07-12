@@ -1,7 +1,6 @@
 #!/usr/bin/env python2
 import pyximport; pyximport.install()
 import argparse
-import sys
 import os
 import random
 import math
