@@ -9,6 +9,7 @@ import plot_bp
 from model import BPGraph, CType, Genome, Chromosome
 from pyx import canvas, style, color
 from ringo_config import RingoConfig
+import sys
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Solves the Small Phylogeny problem with I.G. InDel")
@@ -24,9 +25,17 @@ if __name__ == '__main__':
 
     parser.add_argument("-f", "--weight_filter", type=float, default=0,
                         help="Filter cutoff for adjacency weights, smaller weights are removed.")
-
+    parser.add_argument("-p", "--perfect", action="store_true", default=False, help="Force perfect matching for the maximum weight matching of open components.")
     parser.add_argument("-bp", action="store_true", default=False, help="Writes PDFs files each with a plot of the Breakpoint Graph between two siblings that was used to reconstruct the parent node.")
     param = parser.parse_args()
+
+    cfg = RingoConfig()
+
+    # test if blossom5 is needed:
+    if param.perfect:
+        if not file_ops.blossom5_is_available():
+            print >> sys.stderr, "Blossom5 not found, it is needed for perfect matching. Either install blossom5 or do not use the '-p' perfect matching option."
+            sys.exit(-1)
 
     leaf_genomes = file_ops.open_genome_file(param.input_genomes)
     tree = file_ops.open_newick_tree(param.tree, label_internal_nodes=True)
@@ -40,14 +49,14 @@ if __name__ == '__main__':
 
     filename = os.path.basename(param.adj_weights_file)
 
-    reconstructed = algorithms.ig_indel_small_phylogeny(leaf_genomes, tree, internalAdjWeight)
+    reconstructed = algorithms.ig_indel_small_phylogeny(leaf_genomes, tree, internalAdjWeight, perfect_matching=param.perfect)
 
     # output:
-    cfg = RingoConfig()
-    folder = param.output if param.output is not None else os.path.dirname(param.input_genomes)
+
+    folder = param.output if param.output is not None else ""
     out_filename = os.path.join(folder, cfg.ringo_output_genomes())
     tree_out_filename = os.path.join(folder, cfg.ringo_output_tree())
-    if not os.path.exists(folder):
+    if folder != "" and not os.path.exists(folder):
         os.mkdir(folder)
     file_ops.write_genomes_to_file(reconstructed, out_filename)
     file_ops.write_newick_tree(tree, tree_out_filename)

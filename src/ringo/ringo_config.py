@@ -47,6 +47,10 @@ class RingoConfig(object):
     def physca_reconstructed_adjacencies(self):
         return self.config.get("Filenames", "physca_reconstructed_adjacencies")
 
+    # Blossom5
+    def blossom5_path(self):
+        return self.config.get("Paths", "blossom5_path")
+
     # Simulations
     def sim_leaf_genomes(self):
         return self.config.get("Filenames", "sim_leaf_genomes")

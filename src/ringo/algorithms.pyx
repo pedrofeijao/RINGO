@@ -8,10 +8,11 @@ import sys
 import networkx as nx
 import mwmatching
 import dcj
-
+import file_ops
+import blossom5_perfect_matching
 
 # Int Gen:
-def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=True):
+def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=True, perfect_matching=False):
     # helper functions:
     def add_match_nodes(c_a, c_b, label_a, label_b, ancestral_weight, graph, c_type, path_parity=None):
         # build combined cycle:
@@ -32,11 +33,11 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
         # solve Max-IS:
         if len(component_weights) > 0:
             max_adj, w = max_weight_ind_set(component, component_weights)
-
-            # create edge, if there is some weight:
-            if w > 0:
-                graph.add_edge(label_a, label_b, weight=w,
-                               max_adj=max_adj, component=component, c_type=c_type)
+        else:
+            max_adj, w = [], 0
+        # create edge, if there is some weight, or if the matching is perfect.
+        if w > 0 or perfect_matching:
+          graph.add_edge(label_a, label_b, weight=w, max_adj=max_adj, component=component, c_type=c_type)
 
     def add_path_match_nodes(bp, path_type, label, adj_weight_per_comp, graph):
         odd_path = []
@@ -57,22 +58,130 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
         # complete the matching if one parity is larger:
         if len(odd_path) == len(even_path):
             comp_list = []
-            char = "-"
+            parity = "-"
         elif len(odd_path) > len(even_path):
             comp_list = odd_path
-            char = "o"
+            parity = "o"
         else:
             comp_list = even_path
-            char = "e"
+            parity = "e"
         # same parity matching, even path:
         for i, (path_i, idx_i) in enumerate(comp_list):
             for j, (path_j, idx_j) in enumerate(comp_list[(i + 1):]):
                 j += i + 1
                 adj_weights = dict(adj_weight_per_comp[path_type][idx_i])
                 adj_weights.update((adj_weight_per_comp[path_type][idx_j]))
-                add_match_nodes(path_i, path_j, label + char + "%d" % i, label + char + "%d" % j, adj_weights,
+                add_match_nodes(path_i, path_j, label + parity + "%d" % i, label + parity + "%d" % j, adj_weights,
                                 graph, c_type=CType.PATH, path_parity=0)
-        return comp_list, char
+        return comp_list, parity
+
+    def build_vertex_edges_for_mwm(comp_match_graph, avoid=None, add_bogus=False, invert_weight=False, scale=1):
+        # Build nodes and edges for the mwmatching script/blossum5:
+        # output nodes are integers, 0 to n-1.
+        # avoid any nodes in a given set 'avoid';
+        # 'add bogus' adds an extra vertex with index n, connected to all vertices
+        # with weight 0. Usually it is done when n is odd, to allow a perfect matching.
+        if avoid is None:
+          avoid = set()
+        idx_to_v = comp_match_graph.nodes()
+        if add_bogus:
+          idx_to_v.append("bogus")
+        # idx_to_v = sorted(comp_match_graph.nodes())
+        v_to_idx = {v: idx for idx, v in enumerate(idx_to_v)}
+        # build edges:
+        edges = [(v_to_idx[a], v_to_idx[b], -comp_match_graph.get_edge_data(a, b)['weight']*scale if invert_weight else comp_match_graph.get_edge_data(a, b)['weight']*scale) for a, b in comp_match_graph.edges_iter()]
+        if add_bogus:
+          edges.extend([(v_to_idx[v], v_to_idx["bogus"], 0) for v in idx_to_v[:-1]])
+        # debug: sort:
+        # edges = sorted([(a,b,w) if a<b else (b,a,w) for a,b,w in edges])
+        return idx_to_v, v_to_idx, edges
+
+
+    def add_adjacencies_from_matching(comp_match_graph, a, b, reconstructed_adjacencies, ambiguous_components):
+        data = comp_match_graph.get_edge_data(a, b)
+        component = data['component']
+        max_adj = data['max_adj']
+        c_type = data['c_type']
+        uniq_adj, ambiguous = find_unique_adj(
+            list(component), list(max_adj), c_type)
+        max_adj.extend(uniq_adj)
+        ambiguous_components.extend(ambiguous)
+        reconstructed_adjacencies.update(max_adj)
+
+    def solve_max_weight_matching(bp, adj_weight_per_comp, reconstructed_adjacencies, ambiguous_components):
+        comp_match_graph = {ctype: nx.Graph() for ctype in [CType.AB_PATH, CType.A_PATH, CType.B_PATH]}
+
+        # AB to AB matching:
+        for i, ab_i in enumerate(bp.type_dict[CType.AB_PATH]):
+            for j, ab_j in enumerate(bp.type_dict[CType.AB_PATH][(i + 1):]):
+                j += i + 1
+                adj_weights = dict(adj_weight_per_comp[CType.AB_PATH][i])
+                adj_weights.update((adj_weight_per_comp[CType.AB_PATH][j]))
+                add_match_nodes(ab_i, ab_j, "AB%d" % i, "AB%d" % j, adj_weights, comp_match_graph[CType.AB_PATH],
+                                c_type=CType.CYCLE)
+
+        # A matching:
+        larger_parity_A_components, parity_A = add_path_match_nodes(
+            bp, CType.A_PATH, "A", adj_weight_per_comp, comp_match_graph[CType.A_PATH])
+
+        # B matching:
+        larger_parity_B_components, parity_B = add_path_match_nodes(
+            bp, CType.B_PATH, "B", adj_weight_per_comp, comp_match_graph[CType.B_PATH])
+
+        # SOLVE MAX MATCHING, depending on parity of P_AB:
+        # TODO: right now, easy way: build a matching like it is the even P_AB case, and then
+        # just take the unmatched p_a, p_b and p_ab after the regular matching;
+        # Because of weight 0, there might be more than one unmatched node on each type; take the
+        # best; or maybe I should I try to add more triplets than just the
+        # best?
+
+        if perfect_matching:
+          # If p_AB is odd, we would have remove every triplet and solve a perfect MWM
+          # problem for each triplet, getting the best combination. That is a TODO.
+          # As a quicker approach, just add three bogus A_, B_, and AB_ vertices that connects to
+          # all triplet candidates;
+
+          for ctype in [CType.AB_PATH, CType.A_PATH, CType.B_PATH]:
+            add_bogus = len(bp.type_dict[CType.AB_PATH]) % 2 != 0
+            idx_to_v, v_to_idx, edges = build_vertex_edges_for_mwm(comp_match_graph[ctype], add_bogus=add_bogus, invert_weight=True, scale=1000)
+            bogus = len(idx_to_v)-1
+            if len(edges)>0:
+              solution = blossom5_perfect_matching.run_blossom5(len(idx_to_v), len(edges), edges)
+              # solution is already
+              for a,b in solution:
+                # skip bogus edge:
+                if add_bogus and b == bogus:
+                  continue
+                add_adjacencies_from_matching(comp_match_graph[ctype], idx_to_v[a], idx_to_v[b], reconstructed_adjacencies, ambiguous_components)
+
+        # not perfect
+        else:
+          # Maximum Weight matching, without the restriction of being perfect. In practice,
+          # this means that the completion might not be optimal. But, we can get higher weights,
+          # which might lead to better reconstruction.
+
+          if perfect_matching:
+            print >> sys.stderr, "Blossom5 didn't return a solution, falling back to 'non perfect' matching..."
+
+          for ctype in [CType.AB_PATH, CType.A_PATH, CType.B_PATH]:
+            idx_to_v, v_to_idx, edges = build_vertex_edges_for_mwm(comp_match_graph[ctype])
+            if len(edges)>0:
+              solution = mwmatching.maxWeightMatching(edges)
+              # for each edge of the matching, get the adjacencies for the mathed component:
+              for a,b in solution:
+                # matched.add(idx_to_v[a]);matched.add(idx_to_v[b])
+                add_adjacencies_from_matching(comp_match_graph[ctype], idx_to_v[a], idx_to_v[b], reconstructed_adjacencies, ambiguous_components)
+
+            # if odd, we have unmatched AB path('s?)
+            # TODO: because of 0 weight edges, we can potentially do this also for
+            # even AB. For now, only in the odd case we find the best triplet:
+            # UPDATE: might have a low rate of TP here, I got around FP/TP = 2,
+            # in a simple test, not good. Therefore is it disabled for now.
+          # if len(bp.type_dict[CType.AB_PATH]) % 2 != 0:
+            # find_best_triple(bp, matched, adj_weight_per_comp,
+            #                      reconstructed_adjacencies, ambiguous_components)
+
+
 
     def reconstruct_node(node):
         # Assuming we have both children of this node are leafs (either
@@ -118,68 +227,10 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
             bp, reconstructed_adjacencies, ambiguous_components, adj_weight_per_comp)
         # print reconstructed_adjacencies
 
-        # 4 - Find the matching weights and solve max matching:
-        comp_match_graph = nx.Graph()
-
-        # AB to AB matching:
-        for i, ab_i in enumerate(bp.type_dict[CType.AB_PATH]):
-            for j, ab_j in enumerate(bp.type_dict[CType.AB_PATH][(i + 1):]):
-                j += i + 1
-                adj_weights = dict(adj_weight_per_comp[CType.AB_PATH][i])
-                adj_weights.update((adj_weight_per_comp[CType.AB_PATH][j]))
-                add_match_nodes(ab_i, ab_j, "AB%d" % i, "AB%d" % j, adj_weights, comp_match_graph,
-                                c_type=CType.CYCLE)
-
-        # Ae to Ao matching:
-        larger_parity_A = add_path_match_nodes(
-            bp, CType.A_PATH, "A", adj_weight_per_comp, comp_match_graph)
-
-        # Be to Bo matching:
-        larger_parity_B = add_path_match_nodes(
-            bp, CType.B_PATH, "B", adj_weight_per_comp, comp_match_graph)
-
-        # SOLVE MAX MATCHING, depending on parity of P_AB:
-        # TODO: right now, easy way: build a matching like it is the even P_AB case, and then
-        # just take the unmatched p_a, p_b and p_ab after the regular matching;
-        # Because of weight 0, there might be more than one unmatched node on each type; take the
-        # best; or maybe I should I try to add more triplets than just the
-        # best?
-
-        # Build nodes and edges for the mwmatching script:
-        # nodes must be intergers, 0 to n.
-        idx_to_v = comp_match_graph.nodes()
-        v_to_idx = {v: idx for idx, v in enumerate(idx_to_v)}
-        # build edges:
-        edges = [(v_to_idx[a], v_to_idx[b], comp_match_graph.get_edge_data(a, b)['weight']) for a, b in
-                 comp_match_graph.edges_iter()]
-        # solve:
-        mw_mate = mwmatching.maxWeightMatching(edges)
-        # transform in a dictionary {a:b} for each (a,b) vertex.
-        mate = {idx_to_v[a]: idx_to_v[b]
-                for a, b in enumerate(mw_mate) if b != -1}
-
-        # if odd, we have unmatched AB path('s?)
-        # TODO: because of 0 weight edges, we can potentially do this also for
-        # even AB.
-        if len(bp.type_dict[CType.AB_PATH]) % 2 != 0:
-            find_best_triple(bp, mate, adj_weight_per_comp,
-                             reconstructed_adjacencies, ambiguous_components)
-
-        # add max weight adjacencies from the best matching:
-        seen = set()
-        for a, b in mate.iteritems():
-            if a in seen:
-                continue
-            seen.add(b)
-            data = comp_match_graph.get_edge_data(a, b)
-            component = data['component']
-            max_adj = data['max_adj']
-            c_type = data['c_type']
-            uniq_adj, ambiguous = find_unique_adj(
-                list(component), list(max_adj), c_type)
-            max_adj.extend(uniq_adj)
-            ambiguous_components.extend(ambiguous)
-            reconstructed_adjacencies.update(max_adj)
+        # 4 - Find the matching weights and solve max matching to find the maximum weight completion,
+        # also adding to the reconstructed adjacencies.
+        if any([len(bp.type_dict[CType.AB_PATH])>0,len(bp.type_dict[CType.A_PATH])>0,len(bp.type_dict[CType.B_PATH])>0]):
+          solve_max_weight_matching(bp, adj_weight_per_comp, reconstructed_adjacencies, ambiguous_components)
 
         # Count all possible ways of "completing" the genome:
         # s = 1

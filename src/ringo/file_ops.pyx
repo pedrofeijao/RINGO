@@ -6,9 +6,34 @@ import math
 from model import Genome, Chromosome
 from dendropy import Tree
 import ringo_config
+import subprocess
 
 LINEAR_END_CHR = "$"
 CIRCULAR_END_CHR = ")"
+
+def blossom5_is_available():
+  cfg = ringo_config.RingoConfig()
+  return which(cfg.blossom5_path()) is not None
+
+def which(program):
+    import os
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            path = path.strip('"')
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+
+    return None
+def cmd_exists(cmd):
+    return subprocess.call("type " + cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
 
 def open_mgra_genomes(folder):
     """

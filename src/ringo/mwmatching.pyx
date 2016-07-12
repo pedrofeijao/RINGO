@@ -733,10 +733,10 @@ def maxWeightMatching(edges, maxcardinality=False):
     for v in range(n_vertex):
         if mate[v] >= 0:
             mate[v] = endpoint[mate[v]]
-    for v in range(n_vertex):
-        assert mate[v] == -1 or mate[mate[v]] == v
 
-    return mate
+    for a,b in enumerate(mate):
+      if a<b:
+        yield a,b
 
 
 # Unit tests
