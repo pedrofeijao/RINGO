@@ -252,7 +252,11 @@ def write_ringo_parameters(param, output):
   # filenames to a relative path to output, or absolute:
   outpath = os.path.abspath(param.__dict__["output"])
   for p in ["adj_weights_file","input_genomes","tree", "output"]:
-    abs_p = os.path.abspath(param.__dict__[p])
-    common_p = os.path.commonprefix([abs_p, outpath])
-    param.__dict__[p] = os.path.join(os.path.relpath(os.path.commonprefix([outpath,abs_p]), abs_p), os.path.basename(abs_p))
+    try:
+      abs_p = os.path.abspath(param.__dict__[p])
+      common_p = os.path.commonprefix([abs_p, outpath])
+      param.__dict__[p] = os.path.relpath(abs_p, outpath)
+    # if some path is None (adj_weights_file f.i.):
+    except AttributeError:
+      param.__dict__[p] = ""
   __write_parameters(param, os.path.join(output,cfg.ringo_output_parameters()))

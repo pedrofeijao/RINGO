@@ -21,7 +21,7 @@ if __name__ == '__main__':
     parser.add_argument("-t", "--tree", type=str, required=True, help="Newick Tree file.")
     parser.add_argument("-o", "--output", type=str, help="Output folder. If not given, output is written to the same location of the genomes file.")
 
-    parser.add_argument("-w", "--adj_weights_file", default="custom_weight", type=str, help="Ancestral adjacency weights file.")
+    parser.add_argument("-w", "--adj_weights_file", type=str, help="Ancestral adjacency weights file.")
 
     parser.add_argument("-f", "--weight_filter", type=float, default=0,
                         help="Filter cutoff for adjacency weights, smaller weights are removed.")
@@ -31,6 +31,7 @@ if __name__ == '__main__':
     param = parser.parse_args()
 
     cfg = RingoConfig()
+
 
     # test if blossom5 is needed:
     if param.perfect:
@@ -45,19 +46,20 @@ if __name__ == '__main__':
         algorithms.estimate_branch_lengths(tree, leaf_genomes)
 
     # if custom, use my weighting scheme:
-    if param.adj_weights_file == "custom_weight":
+    if param.adj_weights_file is None:
         internalAdjWeight = algorithms.ancestral_adjacency_weights(Tree(tree), leaf_genomes)
+
     else:
         # if weights are given, use: (usually DeClone weights):
         internalAdjWeight = file_ops.open_ancestral_weights(param.adj_weights_file, cutoff=param.weight_filter)
 
-    filename = os.path.basename(param.adj_weights_file)
-
     reconstructed = algorithms.ig_indel_small_phylogeny(leaf_genomes, tree, internalAdjWeight, perfect_matching=param.perfect)
 
     # output:
+    if param.output is None:
+        param.output = os.getcwd()
 
-    folder = param.output if param.output is not None else ""
+    folder = param.output
     out_filename = os.path.join(folder, cfg.ringo_output_genomes())
     tree_out_filename = os.path.join(folder, cfg.ringo_output_tree())
     if folder != "" and not os.path.exists(folder):
