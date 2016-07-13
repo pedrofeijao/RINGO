@@ -7,12 +7,15 @@ from model import Genome, Chromosome
 from dendropy import Tree
 import ringo_config
 import subprocess
+import json
 
 LINEAR_END_CHR = "$"
 CIRCULAR_END_CHR = ")"
 
+# Ringo_config:
+cfg = ringo_config.RingoConfig()
+
 def blossom5_is_available():
-  cfg = ringo_config.RingoConfig()
   return which(cfg.blossom5_path()) is not None
 
 def which(program):
@@ -209,8 +212,6 @@ def write_declone_weights(singleLeafAdj, internalWeights, extantWeights, kT, fol
     Write the adjacency weights after running DeClone
     """
     # read configuration and get filenames:
-    cfg = ringo_config.RingoConfig()
-
     singleLeafAdjOut = os.path.join(folder, cfg.declone_output_single_leaf(kT))
     internalWeightsOut = os.path.join(folder, cfg.declone_output_internal_weight(kT))
     extantWeightsOut = os.path.join(folder, cfg.declone_output_extant_weight(kT))
@@ -231,3 +232,27 @@ def write_declone_weights(singleLeafAdj, internalWeights, extantWeights, kT, fol
         for adj in extantWeights[leaf]:
             file.write('>' + str(leaf) + '\t' + str(adj) + '\n')
     file.close()
+
+# I/O JSON parameters:
+def __read_parameters(filename):
+  with open(filename, 'r') as f:
+      return json.load(f)
+
+def __write_parameters(param, filename):
+  with open(filename,"w") as f:
+      json.dump(param.__dict__, f, sort_keys = True, indent = 4)
+
+def read_simulation_parameters(folder):
+  return __read_parameters(os.path.join(folder, cfg.sim_paramfile()))
+
+def write_simulation_parameters(param, output):
+  __write_parameters(param, os.path.join(output,cfg.sim_paramfile()))
+
+def write_ringo_parameters(param, output):
+  # filenames to a relative path to output, or absolute:
+  outpath = os.path.abspath(param.__dict__["output"])
+  for p in ["adj_weights_file","input_genomes","tree", "output"]:
+    abs_p = os.path.abspath(param.__dict__[p])
+    common_p = os.path.commonprefix([abs_p, outpath])
+    param.__dict__[p] = os.path.join(os.path.relpath(os.path.commonprefix([outpath,abs_p]), abs_p), os.path.basename(abs_p))
+  __write_parameters(param, os.path.join(output,cfg.ringo_output_parameters()))

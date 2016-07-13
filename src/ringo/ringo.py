@@ -26,6 +26,7 @@ if __name__ == '__main__':
     parser.add_argument("-f", "--weight_filter", type=float, default=0,
                         help="Filter cutoff for adjacency weights, smaller weights are removed.")
     parser.add_argument("-p", "--perfect", action="store_true", default=False, help="Force perfect matching for the maximum weight matching of open components.")
+    parser.add_argument("-bl", "--estimate_lenghts", action="store_true", default=False, help="Estimate treebranch lenghts. Useful if the input tree does not have branch lengths.")
     parser.add_argument("-bp", action="store_true", default=False, help="Writes PDFs files each with a plot of the Breakpoint Graph between two siblings that was used to reconstruct the parent node.")
     param = parser.parse_args()
 
@@ -39,6 +40,9 @@ if __name__ == '__main__':
 
     leaf_genomes = file_ops.open_genome_file(param.input_genomes)
     tree = file_ops.open_newick_tree(param.tree, label_internal_nodes=True)
+
+    if param.estimate_lenghts:
+        algorithms.estimate_branch_lengths(tree, leaf_genomes)
 
     # if custom, use my weighting scheme:
     if param.adj_weights_file == "custom_weight":
@@ -60,6 +64,8 @@ if __name__ == '__main__':
         os.mkdir(folder)
     file_ops.write_genomes_to_file(reconstructed, out_filename)
     file_ops.write_newick_tree(tree, tree_out_filename)
+    # Save parameters:
+    file_ops.write_ringo_parameters(param, folder)
 
     # BP graph plot:
     if param.bp:

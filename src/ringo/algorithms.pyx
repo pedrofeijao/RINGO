@@ -10,6 +10,9 @@ import mwmatching
 import dcj
 import file_ops
 import blossom5_perfect_matching
+import dcj
+import numpy as np
+from scipy.optimize import linprog
 
 # Int Gen:
 def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=True, perfect_matching=False):
@@ -463,7 +466,74 @@ def adjacencies_from_median(label, reconstructed_adjacencies, ambiguous_componen
                 ambiguous_components = new_ambiguous
     return reconstructed_adjacencies, ambiguous_components
 
-# Tree helpers:
+# Tree functions:
+
+
+def estimate_branch_lengths(tree, extant_genomes):
+    """
+    Solve a min evolution Linear Program based on the DCJ-Indel distances
+    between the leaves to estimate branch lenghts of a tree
+    """
+    # index the edges:
+    e_idx = 0
+    # pairwise paths between leafs:
+    pw_paths = {}
+    # list of edges in the order of labeling 0,1,...,n-1.
+    edges = []
+    # paths from the leafs to any internal node. If the internal node is the LCA of two leafs,
+    # merging the paths of both leafs gives the PW path.
+    leaf_paths = {node.label:{} for node in tree.internal_nodes()}
+    # Iterate between all leafs, to create the leaf_paths. If a LCA with previous leafs
+    # is found, create the pw_path.
+    for node in tree.leaf_node_iter():
+        current_node = node
+        path = []
+        # traverse from leaf to root.
+        while current_node != tree.seed_node:
+            # if current edge is not labelled, create a label:
+            if current_node.edge.label is None:
+                current_node.edge.label = e_idx
+                e_idx += 1
+                edges.append(current_node.edge)
+            # current path from leaf to internal node:
+            path.append(current_node.edge)
+            # update current node
+            current_node = current_node.parent_node
+            # check if there are LCAs in this internal node with the current leaf:
+            for k in leaf_paths[current_node.label].iterkeys():
+                # if a PW path exists, this is not LCA, but higher up the tree, so ignore.
+                # if the PW does not exist yet, this is a LCA:
+                if (node.label, k) not in pw_paths:
+                    pw_paths[(node.label, k)] = [p.label for p in leaf_paths[current_node.label][k] + path]
+            # store in this internal node the path from the leaf:
+            leaf_paths[current_node.label][node.label] = list(path)
+    # Now, with all the PW paths, create the LP:
+    # min cx
+    # s.a. Ax >= b   =>  -Ax <= -b   (the linprog package needs <= type of ineq.)
+    # where A is a n x m matrix, n is the number of paths (ineqs.), m the number of edges.
+    n = len(extant_genomes)*(len(extant_genomes)-1)/2
+    m = e_idx
+    A = np.zeros((n,m))
+    b = np.zeros(n)
+    c = np.ones(m)
+
+    # for each path, fill the correct row of the A matrix and b vector:
+    for i, (l, path) in enumerate((pw_paths.iteritems())):
+        b[i] = -dcj.dcj_distance(extant_genomes[l[0]], extant_genomes[l[1]])
+        for j in path:
+            A[i][j] = -1
+    # solve the LP:
+    result = linprog(c, A_ub=A, b_ub=b)
+
+    # Apply the lengths in the tree:
+    for e, x in zip(edges, result.x):
+        e.length = x
+    # the edges from the root are "ambiguous", so each gets the average of the two;
+    # from the solution, usually one gets zero and the other the full length;
+    node_1, node_2 = tree.seed_node.child_nodes()
+    avg = (node_1.edge.length + node_2.edge.length)/2.0
+    node_1.edge.length = node_2.edge.length = avg
+    # that's it.
 
 def tree_diameter(tree):
   max_leaf_distance = {}

@@ -4,9 +4,10 @@
 #
 # Depends on:
 #  Optionally:
-#  - MGRA
-#  - DeClone
-#
+#  - MGRA - https://github.com/ablab/mgra
+#  - DeClone - https://github.com/yannponty/DeClone
+#  - PhySca - https://github.com/nluhmann/PhySca
+
 # Bash Boilerplate: https://github.com/alphabetum/bash-boilerplate
 #
 # Copyright (c) 2015 William Melody • hi@williammelody.com

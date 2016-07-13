@@ -20,18 +20,21 @@ class RingoConfig(object):
     def ringo_output_genomes(self):
         return self.config.get("Filenames", "ringo_output_genomes")
 
+    def ringo_output_parameters(self):
+        return self.config.get("Filenames", "ringo_output_parameters")
+
     # DeClone
     def declone_path(self):
         return self.config.get("Paths", "declone_path")
 
     def declone_output_extant_weight(self, kT):
-        return self.config.get("Filenames", "declone_extant_weight") + '{0:.3g}'.format(kT)
+        return self.config.get("Filenames", "declone_extant_weight") + '{0:.6g}'.format(kT)
 
     def declone_output_single_leaf(self, kT):
-        return self.config.get("Filenames", "declone_single_leaf") + '{0:.3g}'.format(kT)
+        return self.config.get("Filenames", "declone_single_leaf") + '{0:.6g}'.format(kT)
 
     def declone_output_internal_weight(self, kT):
-        return self.config.get("Filenames", "declone_internal_weight") + '{0:.3g}'.format(kT)
+        return self.config.get("Filenames", "declone_internal_weight") + '{0:.6g}'.format(kT)
 
     def declone_nhx_tree(self):
         return self.config.get("Filenames", "declone_nhx_tree")
@@ -60,6 +63,9 @@ class RingoConfig(object):
 
     def sim_tree(self):
         return self.config.get("Filenames", "sim_tree")
+
+    def sim_tree_no_lengths(self):
+        return self.config.get("Filenames", "sim_tree_no_lengths")
 
     def sim_logfile(self):
         return self.config.get("Filenames", "sim_logfile")

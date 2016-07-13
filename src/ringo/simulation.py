@@ -7,8 +7,6 @@ import math
 from dendropy import Tree
 from dendropy.simulate import treesim
 import numpy as np
-import json
-
 import algorithms
 import file_ops
 import model
@@ -71,8 +69,7 @@ class Simulation:
 
         sim.sim_parameters = SimParameters()
         # Reading data back
-        with open(os.path.join(folder, cfg.sim_paramfile()), 'r') as f:
-            sim.sim_parameters.__dict__ = json.load(f)
+        sim.sim_parameters.__dict__ = file_ops.read_simulation_parameters(folder)
         return sim
 
     @staticmethod
@@ -231,9 +228,11 @@ class Simulation:
 
         cfg = RingoConfig()
 
-        # Output evolved tree:
+        # Output simulated tree:
         tree = self.sim_tree
         tree.write_to_path(os.path.join(output, cfg.sim_tree()), suppress_rooting=True, schema='newick')
+        tree.write_to_path(os.path.join(output, cfg.sim_tree_no_lengths()), suppress_rooting=True,
+                           suppress_edge_lengths=True, schema='newick')
 
         # create genomes:
         self.leaf_genomes = {node.taxon.label: node.value for node in tree.leaf_nodes()}
@@ -281,8 +280,7 @@ class Simulation:
             f.write(tree.as_ascii_plot(show_internal_node_labels=True, plot_metric='length') + "\n")
 
         # Save parameters:
-        with open(os.path.join(output,cfg.sim_paramfile()),"w") as f:
-            json.dump(param.__dict__, f, sort_keys = True, indent = 4)
+        file_ops.write_simulation_parameters(param, output)
 
 
 
