@@ -1,5 +1,5 @@
-Cython
-matplotlib
+Cython==0.24
+matplotlib==1.5.1
 appnope==0.1.0
 backports.shutil-get-terminal-size==1.0.0
 decorator==4.0.9
@@ -12,6 +12,7 @@ pexpect==4.1.0
 pickleshare==0.7.2
 ptyprocess==0.5.1
 PyX==0.12.1
+scipy==0.17.1
 simplegeneric==0.8.1
 six==1.10.0
 tabulate==0.7.5
