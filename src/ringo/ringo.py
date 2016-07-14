@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
-import pyximport; pyximport.install()
+import ringo_config
+cfg = ringo_config.RingoConfig()
+import pyximport; pyximport.install(build_dir=cfg.pyximport_build())
 import argparse
 import os
 from dendropy import Tree
@@ -29,9 +31,6 @@ if __name__ == '__main__':
     parser.add_argument("-bl", "--estimate_lenghts", type=str, choices=["lp", "least_squares"], help="Estimate tree branch lenghts, greatly improves RINGO results if the input tree does not have branch lengths. Choose one of the available methods.")
     parser.add_argument("-bp", action="store_true", default=False, help="Writes PDFs files each with a plot of the Breakpoint Graph between two siblings that was used to reconstruct the parent node.")
     param = parser.parse_args()
-
-    cfg = RingoConfig()
-
 
     # test if blossom5 is needed:
     if param.perfect:

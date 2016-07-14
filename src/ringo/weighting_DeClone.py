@@ -1,12 +1,14 @@
 #!/usr/bin/env python2
-import pyximport; pyximport.install()
+import ringo_config
+cfg = ringo_config.RingoConfig()
+import pyximport; pyximport.install(build_dir=cfg.pyximport_build())
 import argparse
 
 import os
 import subprocess
 import tempfile
 import file_ops
-import ringo_config
+
 from dendropy import Tree
 
 
@@ -132,7 +134,6 @@ def read_Marker_file(marker):
 def main(treefile, ignore_weights, marker_file, kT=0.1, minimum=0.0, write_output=False, output_folder="."):
 
     # Config:
-    cfg = ringo_config.RingoConfig()
     declone = cfg.declone_path()
     # nhx output:
     nhxFile = os.path.splitext(treefile)[0] + ".nhx"

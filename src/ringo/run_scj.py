@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
-import pyximport; pyximport.install()
+import ringo_config
+cfg = ringo_config.RingoConfig()
+import pyximport; pyximport.install(build_dir=cfg.pyximport_build())
 import argparse
 import os
 import scj
@@ -22,6 +24,5 @@ if __name__ == '__main__':
     genomes = {label:Genome.from_adjacency_list(label, adj) for label, adj in adj_set.iteritems()}
 
     # write output:
-    cfg = RingoConfig()
     folder = param.output if param.output is not None else os.path.dirname(param.input_genomes)
     file_ops.write_genomes_to_file(genomes, os.path.join(folder, cfg.scj_genomes()))

@@ -1,6 +1,7 @@
 #! /usr/bin/env python2
-import pyximport
-pyximport.install()
+import ringo_config
+cfg = ringo_config.RingoConfig()
+import pyximport; pyximport.install(build_dir=cfg.pyximport_build())
 import argparse
 from tabulate import tabulate
 import file_ops
@@ -92,7 +93,7 @@ def plot_scatter(results, x_stats="total_ev", y_stats="tp"):
 def plot_bar(results, algs, stats=["tp","fp"]):
     cl = plt.cm.Paired([x-(1.0/24) for x in np.linspace(0, 1, 12)])[1::2]
 
-    alpha={"tp":1, "fp":0.8, "fn":0.6}
+    alpha={"tp":1, "fp":0.7, "fn":0.4}
 
     n_algs = len(algs)
     bar_width = 1.0 / (n_algs + 1)
@@ -137,7 +138,6 @@ def plot_bar(results, algs, stats=["tp","fp"]):
 
 
 def parse_sims(folders, algorithm_list, parameters, sim_group):
-    cfg = RingoConfig()
 
     # if algorithm_list is None:
     #     # TODO: auto-detect?
@@ -193,8 +193,8 @@ if __name__ == '__main__':
     algorithm_list = param.algorithms
     algs = [t.split(",")[0] for t in algorithm_list]
     parameters = ["tp", "fn", "fp"]
-    # sim_group = "(%(scale).1f,%(indel_perc).1f)"
-    sim_group = "%(scale).1f"
+    sim_group = "(%(scale).1f,%(indel_perc).1f)"
+    # sim_group = "%(scale).1f"
     # sim_group = "All"
 
     all_results = parse_sims(param.folders, algorithm_list, parameters, sim_group)

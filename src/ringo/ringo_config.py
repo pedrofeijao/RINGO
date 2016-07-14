@@ -79,5 +79,8 @@ class RingoConfig(object):
     def scj_genomes(self):
         return self.config.get("Filenames", "scj_genomes")
 
+    def pyximport_build(self):
+        return self.config.get("Paths", "pyximport_build")
+        
     def mgra_output_folder(self):
         return self.config.get("Filenames", "mgra_output_folder")

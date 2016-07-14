@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
-import pyximport; pyximport.install()
+import ringo_config
+cfg = ringo_config.RingoConfig()
+import pyximport; pyximport.install(build_dir=cfg.pyximport_build())
 import argparse
 import os
 import random
@@ -60,7 +62,6 @@ class Simulation:
     @staticmethod
     def open_folder(folder):
         sim = Simulation(folder)
-        cfg = RingoConfig()
 
         sim.leaf_genomes = file_ops.open_genome_file(os.path.join(folder, cfg.sim_leaf_genomes()))
         sim.ancestral_genomes = file_ops.open_genome_file(os.path.join(folder, cfg.sim_ancestral_genomes()))
@@ -225,8 +226,6 @@ class Simulation:
         output = self.folder
         if not os.path.exists(output):
             os.makedirs(output)
-
-        cfg = RingoConfig()
 
         # Output simulated tree:
         tree = self.sim_tree

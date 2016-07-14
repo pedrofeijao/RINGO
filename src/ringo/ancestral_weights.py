@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
-import pyximport; pyximport.install()
+import ringo_config
+cfg = ringo_config.RingoConfig()
+import pyximport; pyximport.install(build_dir=cfg.pyximport_build())
 import argparse
 from dendropy import Tree
 import algorithms
