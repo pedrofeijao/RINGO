@@ -26,7 +26,7 @@ if __name__ == '__main__':
     parser.add_argument("-f", "--weight_filter", type=float, default=0,
                         help="Filter cutoff for adjacency weights, smaller weights are removed.")
     parser.add_argument("-p", "--perfect", action="store_true", default=False, help="Force perfect matching for the maximum weight matching of open components.")
-    parser.add_argument("-bl", "--estimate_lenghts", action="store_true", default=False, help="Estimate treebranch lenghts. Useful if the input tree does not have branch lengths.")
+    parser.add_argument("-bl", "--estimate_lenghts", type=str, choices=["lp", "least_squares"], help="Estimate tree branch lenghts, greatly improves RINGO results if the input tree does not have branch lengths. Choose one of the available methods.")
     parser.add_argument("-bp", action="store_true", default=False, help="Writes PDFs files each with a plot of the Breakpoint Graph between two siblings that was used to reconstruct the parent node.")
     param = parser.parse_args()
 
@@ -42,12 +42,21 @@ if __name__ == '__main__':
     leaf_genomes = file_ops.open_genome_file(param.input_genomes)
     tree = file_ops.open_newick_tree(param.tree, label_internal_nodes=True)
 
-    if param.estimate_lenghts:
-        algorithms.estimate_branch_lengths(tree, leaf_genomes)
+    # estimate lenghts:
+    if param.estimate_lenghts is not None:
+        if param.estimate_lenghts == "lp":
+            algorithms.estimate_branch_lengths_lp(tree, leaf_genomes)
+        elif param.estimate_lenghts == "least_squares":
+            algorithms.estimate_branch_lengths_least_squares(tree, leaf_genomes)
+    else:
+        # default is to run it anyway, if the tree has no branch lengths:
+        if any([node.edge.length is None for node in tree.leaf_nodes()]):
+            algorithms.estimate_branch_lengths_lp(tree, leaf_genomes)
 
-    # if custom, use my weighting scheme:
+    # if no weights file is given, use default weighting scheme:
     if param.adj_weights_file is None:
         internalAdjWeight = algorithms.ancestral_adjacency_weights(Tree(tree), leaf_genomes)
+
 
     else:
         # if weights are given, use: (usually DeClone weights):

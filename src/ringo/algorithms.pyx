@@ -13,7 +13,7 @@ import blossom5_perfect_matching
 import dcj
 import numpy as np
 from scipy.optimize import linprog
-
+from numpy.linalg import lstsq
 # Int Gen:
 def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=True, perfect_matching=False):
     # helper functions:
@@ -467,12 +467,18 @@ def adjacencies_from_median(label, reconstructed_adjacencies, ambiguous_componen
     return reconstructed_adjacencies, ambiguous_components
 
 # Tree functions:
+def estimate_branch_lengths_lp(tree, extant_genomes):
+  return __estimate_branch_lengths(tree, extant_genomes, "lp")
+
+def estimate_branch_lengths_least_squares(tree, extant_genomes):
+  return __estimate_branch_lengths(tree, extant_genomes, "least_squares")
 
 
-def estimate_branch_lengths(tree, extant_genomes):
+def __estimate_branch_lengths(tree, extant_genomes, method):
     """
+    Estimates the branch lenghts of a tree by two availavble
     Solve a min evolution Linear Program based on the DCJ-Indel distances
-    between the leaves to estimate branch lenghts of a tree
+    between the leaves to
     """
     # index the edges:
     e_idx = 0
@@ -522,11 +528,17 @@ def estimate_branch_lengths(tree, extant_genomes):
         b[i] = -dcj.dcj_distance(extant_genomes[l[0]], extant_genomes[l[1]])
         for j in path:
             A[i][j] = -1
-    # solve the LP:
-    result = linprog(c, A_ub=A, b_ub=b)
-
+    if method == "lp":
+      # solve the LP:
+      result = linprog(c, A_ub=A, b_ub=b).x
+    elif method == "least_squares":
+      # alternatively: least squares:
+      result = lstsq(A, b)[0]
+    else:
+      print >> sys.stderr, "Unknown method for branch lenght estimation, skipping..."
+      return
     # Apply the lengths in the tree:
-    for e, x in zip(edges, result.x):
+    for e, x in zip(edges, result):
         e.length = x
     # the edges from the root are "ambiguous", so each gets the average of the two;
     # from the solution, usually one gets zero and the other the full length;
@@ -548,14 +560,41 @@ def tree_diameter(tree):
       c1, c2 = node.child_nodes()
       max_leaf_distance[node] = max(max_leaf_distance[c1] + c1.edge.length, max_leaf_distance[c2] + c2.edge.length)
 
+def set_all_tree_distances(tree):
+  set_min_distance_from_node_to_leaves(tree)
+  set_max_distance_from_node_to_leaves(tree)
+  set_avg_distance_from_node_to_leaves(tree)
+  set_distance_from_node_to_root(tree)
+  set_total_evolution_from_node_to_leaves(tree)
 
-def set_distance_from_node_to_leaves(in_tree):
+
+def set_min_distance_from_node_to_leaves(in_tree):
     for node in in_tree.postorder_node_iter():
         if node.is_leaf():
-            node.d_leaf = 0
+            node.min_d_leaf = 0
         else:
-            node.d_leaf = min(
-                [n.d_leaf + n.edge.length for n in node.child_nodes()])
+            node.min_d_leaf = min([n.min_d_leaf + n.edge.length for n in node.child_nodes()])
+
+def set_max_distance_from_node_to_leaves(in_tree):
+    for node in in_tree.postorder_node_iter():
+        if node.is_leaf():
+            node.max_d_leaf = 0
+        else:
+            node.max_d_leaf = max([n.max_d_leaf + n.edge.length for n in node.child_nodes()])
+
+def set_avg_distance_from_node_to_leaves(in_tree):
+    for node in in_tree.postorder_node_iter():
+        if node.is_leaf():
+            node.avg_d_leaf = 0
+        else:
+            node.avg_d_leaf = np.mean([n.max_d_leaf + n.edge.length for n in node.child_nodes()])
+
+def set_total_evolution_from_node_to_leaves(in_tree):
+    for node in in_tree.postorder_node_iter():
+        if node.is_leaf():
+            node.total_ev = 0
+        else:
+            node.total_ev = sum([n.total_ev + n.edge.length for n in node.child_nodes()])
 
 
 def set_distance_from_node_to_root(in_tree):

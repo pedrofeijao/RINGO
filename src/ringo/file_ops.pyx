@@ -98,7 +98,7 @@ def open_genome_file(filename):
                 elif line.endswith(CIRCULAR_END_CHR):
                     circular = True
                 else:
-                    raise RuntimeError("Invalid genome file. Unrecognized line:\n%s" % line)
+                    raise RuntimeError("Invalid genome file %s. Unrecognized line:\n%s" % (filename, line))
                 genome.add_chromosome(Chromosome(map(int, line[:-1].strip().split(" ")), circular))
     return genome_list
 
