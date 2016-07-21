@@ -15,10 +15,11 @@ from dendropy import Tree
 # Drawing parameters:
 COMP_RADIUS = 2  # X_SEP
 
-g1_color = color.cmyk.Black
-g2_color = color.cmyk.Gray
-ancestral_color = color.cmyk.Blue
-reconstructed_color = color.cmyk.Orange
+# styles:
+g1_style = [style.linewidth(0.05), color.cmyk.Black]
+g2_style = [style.linewidth(0.05), color.cmyk.Gray]
+ancestral_style = [style.linewidth(0.2), color.cmyk.Blue, style.linecap.round]
+reconstructed_style = [style.linewidth(0.12), color.cmyk.Orange, style.linecap.round]
 weight_color = color.cmyk.LimeGreen
 
 def draw_genome(c, adjacency_set, pos, style, draw_only_in_given_components=None):
@@ -39,7 +40,7 @@ def draw_genome(c, adjacency_set, pos, style, draw_only_in_given_components=None
                 pass
 
 
-def draw_bp_graph(c, bp, g1, g2, component_list=None, x_offset=0, y_offset=0, include_2comp=False):
+def draw_bp_graph(c, bp, g1, g2, component_list=None, x_offset=0, y_offset=0, include_2comp=True):
     pos = {}
     if component_list is None:
         component_list = [{'c':val, 'type':key} for key, c_list in bp.type_dict.iteritems() for val in c_list]
@@ -68,8 +69,8 @@ def draw_bp_graph(c, bp, g1, g2, component_list=None, x_offset=0, y_offset=0, in
         x_offset += 2.8 * COMP_RADIUS
 
     # input genomes:
-    draw_genome(c, g1.adjacency_set(), pos, [style.linewidth(0.05), g1_color])
-    draw_genome(c, g2.adjacency_set(), pos, [style.linewidth(0.05), g2_color])
+    draw_genome(c, g1.adjacency_set(), pos, g1_style)
+    draw_genome(c, g2.adjacency_set(), pos, g2_style)
 
     # A and B-open vertices:
     a_open = []
@@ -94,9 +95,9 @@ def draw_bp_graph(c, bp, g1, g2, component_list=None, x_offset=0, y_offset=0, in
             b_open.append(component[-1])
 
     for px, py in [pos[a] for a in a_open]:
-        c.stroke(path.circle(px, py, 0.15), [g1_color])
+        c.stroke(path.circle(px, py, 0.15), g1_style)
     for px, py in [pos[b] for b in b_open]:
-        c.stroke(path.circle(px, py, 0.15), [g2_color])
+        c.stroke(path.circle(px, py, 0.15), g2_style)
 
     return pos
 
@@ -117,17 +118,37 @@ def draw_all_bp(reconstructed, tree, folder, internalAdjWeight, ancestral=None):
         y_offset += 2.5 * COMP_RADIUS
         # true ancestor:
         if ancestral is not None:
-            draw_genome(c, ancestral[node.label].adjacency_set(), pos,
-                                [style.linewidth(0.2), ancestral_color, style.linecap.round],
+            draw_genome(c, ancestral[node.label].adjacency_set(), pos, ancestral_style,
                                 draw_only_in_given_components=comp_list)
         # reconstructed:
         draw_genome(c, reconstructed[node.label].adjacency_set(), pos,
-                            [style.linewidth(0.12), reconstructed_color, style.linecap.round],
+                            reconstructed_style,
                             draw_only_in_given_components=comp_list)
         # weights:
         for max_w in [x / 10.0 for x in range(1, 11)]:
             draw_genome(c, [adj for adj, w in internalAdjWeight[node.label].iteritems() if w > max_w], pos,
                                 [style.linewidth(max_w / 10), weight_color],
                                 draw_only_in_given_components=comp_list)
+
+    # legend:
+    y_offset -= COMP_RADIUS/2.0
+    for name, st in [("Ancestral adjacencies", ancestral_style), ("Adjacency weights",[weight_color]),
+            ("Reconstructed Genome", reconstructed_style), ("Genome B", g2_style), ("Genome A", g1_style)]:
+        c.stroke(path.line(0, y_offset, COMP_RADIUS, y_offset), st)
+        c.text(COMP_RADIUS+0.4, y_offset-0.1, name)
+        y_offset += COMP_RADIUS/3.0
+    c.text(COMP_RADIUS+0.4, y_offset-0.2, " ")
+    #
+    #
+    # c.stroke(path.line(0, y_offset, COMP_RADIUS, y_offset), ancestral_style)
+    # c.text(COMP_RADIUS+0.4, y_offset-0.2, "Ancestral adjacencies")
+    #
+    # y_offset += COMP_RADIUS/3
+    # c.stroke(path.line(0, y_offset, COMP_RADIUS, y_offset), [weight_color])
+    # y_offset += COMP_RADIUS/3
+    # c.stroke(path.line(0, y_offset, COMP_RADIUS, y_offset), g1_style)
+    # y_offset += COMP_RADIUS/3
+    # c.stroke(path.line(0, y_offset, COMP_RADIUS, y_offset), g2_style)
+    # y_offset += COMP_RADIUS/3
 
     c.writePDFfile(os.path.join(folder, "bp_plot.pdf"))
