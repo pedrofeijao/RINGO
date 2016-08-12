@@ -50,6 +50,9 @@ class RingoConfig(object):
     def physca_reconstructed_adjacencies(self):
         return self.config.get("Filenames", "physca_reconstructed_adjacencies")
 
+    # MLGO:
+    def mlgo_output_genomes(self):
+        return self.config.get("Filenames", "mlgo_output_genomes")
     # Blossom5
     def blossom5_path(self):
         return self.config.get("Paths", "blossom5_path")
@@ -57,6 +60,9 @@ class RingoConfig(object):
     # Simulations
     def sim_leaf_genomes(self):
         return self.config.get("Filenames", "sim_leaf_genomes")
+
+    def sim_leaf_simple_genomes(self):
+        return self.config.get("Filenames", "sim_leaf_simple_genomes")
 
     def sim_ancestral_genomes(self):
         return self.config.get("Filenames", "sim_ancestral_genomes")
@@ -81,6 +87,6 @@ class RingoConfig(object):
 
     def pyximport_build(self):
         return self.config.get("Paths", "pyximport_build")
-        
+
     def mgra_output_folder(self):
         return self.config.get("Filenames", "mgra_output_folder")
