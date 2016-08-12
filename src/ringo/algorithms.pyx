@@ -14,8 +14,43 @@ import dcj
 import numpy as np
 from scipy.optimize import linprog
 from numpy.linalg import lstsq
+import random
+import copy
+
+## Sampling random genomes:
+
+def random_adjacencies_from_cycle(cycle):
+    # choose [0,i], where i is odd; cycle length should be even; (odd paths get +1, even get +2 nodes)
+    if len(cycle) == 0:
+        return []
+    assert len(cycle) % 2 == 0
+    # print "C", cycle
+    pos = random.randint(0,(len(cycle)/2)-1) * 2 + 1
+    adj = cycle[0], cycle[pos]
+    return random_adjacencies_from_cycle(cycle[1:pos])+ [adj] + random_adjacencies_from_cycle(cycle[(pos+1):])
+
+def random_adjacencies_from_cycles(cycle_list):
+    # print "CL:", cycle_list
+    return [adj for adjacencies in [random_adjacencies_from_cycle(cycle) for cycle in cycle_list] for adj in adjacencies]
+
+def random_adjacencies_from_list(adj_list):
+  assert len(adj_list) % 2 ==0
+  random_adj = []
+  while len(adj_list)>0:
+    # adj = (pos,n-1); pos is random:
+    pos = random.randint(0,len(adj_list)-2)
+    ex1 = adj_list.pop()
+    ex2 = adj_list.pop(pos)
+    if ex1 > ex2:
+      ex1, ex2 = ex2, ex1
+    random_adj.append((ex1,ex2))
+  return random_adj
+
+
+
 # Int Gen:
-def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=True, perfect_matching=False):
+def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=True, perfect_matching=False,
+    random_repeat=0,add_open_2_cycles=False):
     # helper functions:
     def add_match_nodes(c_a, c_b, label_a, label_b, ancestral_weight, graph, c_type, path_parity=None):
         # build combined cycle:
@@ -162,17 +197,14 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
           # Maximum Weight matching, without the restriction of being perfect. In practice,
           # this means that the completion might not be optimal. But, we can get higher weights,
           # which might lead to better reconstruction.
-
-          if perfect_matching:
-            print >> sys.stderr, "Blossom5 didn't return a solution, falling back to 'non perfect' matching..."
-
+          matched = set()
           for ctype in [CType.AB_PATH, CType.A_PATH, CType.B_PATH]:
             idx_to_v, v_to_idx, edges = build_vertex_edges_for_mwm(comp_match_graph[ctype])
             if len(edges)>0:
               solution = mwmatching.maxWeightMatching(edges)
               # for each edge of the matching, get the adjacencies for the mathed component:
               for a,b in solution:
-                # matched.add(idx_to_v[a]);matched.add(idx_to_v[b])
+                matched.add(idx_to_v[a]);matched.add(idx_to_v[b])
                 add_adjacencies_from_matching(comp_match_graph[ctype], idx_to_v[a], idx_to_v[b], reconstructed_adjacencies, ambiguous_components)
 
             # if odd, we have unmatched AB path('s?)
@@ -180,10 +212,101 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
             # even AB. For now, only in the odd case we find the best triplet:
             # UPDATE: might have a low rate of TP here, I got around FP/TP = 2,
             # in a simple test, not good. Therefore is it disabled for now.
-          # if len(bp.type_dict[CType.AB_PATH]) % 2 != 0:
-            # find_best_triple(bp, matched, adj_weight_per_comp,
-            #                      reconstructed_adjacencies, ambiguous_components)
+          # if False:
+          if len(bp.type_dict[CType.AB_PATH]) % 2 != 0:
+            find_best_triple(bp, matched, adj_weight_per_comp,
+                                 reconstructed_adjacencies, ambiguous_components)
 
+
+    def complete_with_random_adjacencies(genomes, label, tree, reconstructed_adjacencies, ambiguous_components, random_repeats, bp, node):
+        # print "AMBIG:",set([c['type'] for c in ambiguous_components])
+        # find closest leaf:
+        sorted_leafs = closest_leafs_from_node(tree, label)
+        closest_label, closest_dist = sorted_leafs[0]
+        closest_genome = genomes[closest_label]
+
+        # best:
+        best_dist = 1e10
+        best_adjs = None
+        for i in range(random_repeats):
+          cycles = []
+          for elem in ambiguous_components:
+            if elem['type'] in [CType.PATH, CType.A_PATH, CType.B_PATH]:
+              if len(elem['c']) % 2 == 0:
+                cycles.append(elem['c'] + [0,0])
+              else:
+                cycles.append(elem['c'] + [0])
+            else:
+              cycles.append(elem['c'])
+
+          # cycles = copy.deepcopy(ambiguous_components)
+          recon = set(reconstructed_adjacencies)
+          # from IntGen only:
+          # adjs = random_adjacencies_from_cycles(cycles)
+          # or totally random:
+          adjs = random_adjacencies_from_list([adj for component in ambiguous_components for adj in component['c']])
+
+          recon.update(adjs)
+          g = Genome.from_adjacency_list("Random", recon)
+          g = add_remove_singletons(g, bp, tree, genomes, node)
+
+          dcj_distance = dcj.dcj_distance(g, closest_genome)
+          if dcj_distance < best_dist:
+              best_adjs = adjs
+              best_dist = dcj_distance
+
+        return best_adjs
+
+    def add_remove_singletons(reconstructed_genome, bp, tree, genomes, node):
+      # add missing genes:
+      gene_set = reconstructed_genome.gene_set()
+      for gene in bp.common_AB:
+          if gene not in gene_set:
+              reconstructed_genome.add_chromosome(Chromosome([gene]))
+
+      # remove indel genes:
+      # TODO: this way is "dynamic"; should we do static, from the initial
+      # tree?
+      ancestral_gene_set = build_ancestral_gene_set(
+          Tree(tree), genomes, one_node=node)[node.label]
+
+      no_indel = list(reconstructed_genome.chromosomes)
+      for chrom in reconstructed_genome.chromosomes:
+          if all([abs(x) in bp.unique_A for x in chrom]) or all([abs(x) in bp.unique_B for x in chrom]):
+              # If it is circular, always remove:
+              if chrom.circular:
+                  no_indel.remove(chrom)
+                  # print "Remove:",chrom
+                  continue
+              # if linear, use the "guess":
+              guess = [abs(g) in ancestral_gene_set for g in chrom]
+
+              # gene_in = [abs(g) in perfect[label].gene_set() for g in chrom]
+              # if cmp(guess, gene_in) != 0:
+              #     print "Circular:", chrom.circular, "Weights:", guess, "avg:", sum(guess) / len(guess)
+              #     print "Gene In ancestral:", gene_in
+              #     print "Adj in ancestral:", [adj in perfect[label].adjacency_set() for adj in chrom.adjacency_set()]
+              #     print
+
+              # if all are good, continue without removing; else, break the chromosome into
+              # parts that are good.
+              if all(guess):
+                  continue
+              no_indel.remove(chrom)
+              if any(guess):
+                  current_chrom = []
+                  for gene_in, gene in zip(guess, chrom):
+                      if gene_in:
+                          current_chrom.append(gene)
+                      else:
+                          if len(current_chrom) > 0:
+                              no_indel.append(Chromosome(current_chrom))
+                              current_chrom = []
+                  if len(current_chrom) > 0:
+                      no_indel.append(Chromosome(current_chrom))
+
+      # build the new genome after inserting/deleting chromosomes.
+      return Genome(name=node.label, chr_list=no_indel)
 
 
     def reconstruct_node(node):
@@ -195,10 +318,10 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
         print >> sys.stderr, "Reconstructing %s ..." % label
 
         # Rebuild node:
-        # 1 - find BP graph:
+        # == find BP graph:
         bp = BPGraph(genomes[node1.label], genomes[node2.label])
 
-        # 2 - adjacencies for this node,  from DeClone:
+        # == adjacency weight for this node:
         ancestral_weight = ancestral_adj[label]
 
         # Todo: Sometimes I get conflicting adjacencies, how can this happen?
@@ -225,12 +348,13 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
                     adj_weight_per_comp[c_type][
                         ext_in_comp[c_type][ext1]][adj] = w
 
-        # 3 - Solve the "easy" cases:
+        # == Solve the "easy" cases:
         max_adjacencies_from_cycles(
-            bp, reconstructed_adjacencies, ambiguous_components, adj_weight_per_comp)
+            bp, reconstructed_adjacencies, ambiguous_components, adj_weight_per_comp,
+             add_open_2_cycles=add_open_2_cycles)
         # print reconstructed_adjacencies
 
-        # 4 - Find the matching weights and solve max matching to find the maximum weight completion,
+        # == Find the matching weights and solve max matching to find the maximum weight completion,
         # also adding to the reconstructed adjacencies.
         if any([len(bp.type_dict[CType.AB_PATH])>0,len(bp.type_dict[CType.A_PATH])>0,len(bp.type_dict[CType.B_PATH])>0]):
           solve_max_weight_matching(bp, adj_weight_per_comp, reconstructed_adjacencies, ambiguous_components)
@@ -241,67 +365,51 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
         #     s *= math.factorial(2 * n) // math.factorial(n + 1) // math.factorial(n)
         # print "Possible genomes:", s
 
-        # 4.5 = solve IG median to add more adjacencies, if not at the root:
+        # === solve IG median to add more adjacencies, if not at the root:
         if solve_median and node != dynamic_tree.seed_node:
             reconstructed_adjacencies, ambiguous_components = adjacencies_from_median(
                 label, reconstructed_adjacencies, ambiguous_components, dynamic_tree, genomes)
 
+        # === randomly complete:
+        if random_repeat > 0:
+          new_adj = complete_with_random_adjacencies(genomes, label, dynamic_tree, reconstructed_adjacencies,
+                ambiguous_components, random_repeat, bp, node)
+          reconstructed_adjacencies.update(new_adj)
+
+        # == solve a Max W Matching with the remaining weights for unmatched adjacencies:
+        # TODO: can be a good idea for a more agressive reconstruction, but might get
+        # lots of FP.
+        if False:
+          unmatched = set([ext for component in ambiguous_components for ext in component['c']])
+          graph = nx.Graph()
+          for adj, w in ancestral_weight.iteritems():
+            if w>0.9 and all([(ext in unmatched) for ext in adj]):
+              # print "AD:",adj,w
+              graph.add_edge(adj[0], adj[1], weight=w)
+
+          idx_to_v, v_to_idx, edges = build_vertex_edges_for_mwm(graph)
+          if len(edges)>0:
+              solution = mwmatching.maxWeightMatching(edges)
+              # for each edge of the matching, get the adjacencies for the mathed component:
+              for a,b in solution:
+                reconstructed_adjacencies.add((idx_to_v[a],idx_to_v[b]))
+
+
+
+
+        # add_adjacencies_from_matching(comp_match_graph[ctype], idx_to_v[a], idx_to_v[b], reconstructed_adjacencies, ambiguous_components)
+
         # 5 - create genome by using the BP algorithms:
-        reconstructed_genome = Genome.from_adjacency_list(
-            label, reconstructed_adjacencies)
+        reconstructed_genome = Genome.from_adjacency_list(label, reconstructed_adjacencies)
 
         # 6 - add or remove InDel genes:
-        # add missing genes:
-        gene_set = reconstructed_genome.gene_set()
-        for gene in bp.common_AB:
-            if gene not in gene_set:
-                reconstructed_genome.add_chromosome(Chromosome([gene]))
+        # add missing genes, remove singletons:
+        reconstructed_genome = add_remove_singletons(reconstructed_genome, bp, dynamic_tree, genomes, node)
 
-        # remove indel genes:
-        # TODO: this way is "dynamic"; should we do static, from the initial
-        # tree?
-        ancestral_gene_set = build_ancestral_gene_set(
-            Tree(dynamic_tree), genomes, one_node=node)[node.label]
-
-        no_indel = list(reconstructed_genome.chromosomes)
-        for chrom in reconstructed_genome.chromosomes:
-            if all([abs(x) in bp.unique_A for x in chrom]) or all([abs(x) in bp.unique_B for x in chrom]):
-                # If it is circular, always remove:
-                if chrom.circular:
-                    no_indel.remove(chrom)
-                    continue
-                # if linear, use the "guess":
-                guess = [abs(g) in ancestral_gene_set for g in chrom]
-
-                # gene_in = [abs(g) in perfect[label].gene_set() for g in chrom]
-                # if cmp(guess, gene_in) != 0:
-                #     print "Circular:", chrom.circular, "Weights:", guess, "avg:", sum(guess) / len(guess)
-                #     print "Gene In ancestral:", gene_in
-                #     print "Adj in ancestral:", [adj in perfect[label].adjacency_set() for adj in chrom.adjacency_set()]
-                #     print
-
-                # if all are good, continue without removing; else, break the chromosome into
-                # parts that are good.
-                if all(guess):
-                    continue
-                no_indel.remove(chrom)
-                if any(guess):
-                    current_chrom = []
-                    for gene_in, gene in zip(guess, chrom):
-                        if gene_in:
-                            current_chrom.append(gene)
-                        else:
-                            if len(current_chrom) > 0:
-                                no_indel.append(Chromosome(current_chrom))
-                                current_chrom = []
-                    if len(current_chrom) > 0:
-                        no_indel.append(Chromosome(current_chrom))
-
-        # build the new genome after inserting/deleting chromosomes.
-        reconstructed_genome = Genome(name=label, chr_list=no_indel)
         # add to the list of genomes:
         genomes[label] = reconstructed_genome
 
+        # print "G:", reconstructed_genome
         # Final step - prune dynamic tree:
         # prune the leaves, internal node becomes leaf;
         new_leaf = dynamic_tree.find_node_with_label(label)
@@ -351,17 +459,27 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
     return {node.label: genomes[node.label] for node in tree.internal_nodes() if node != tree.seed_node}
 
 
-def max_adjacencies_from_cycles(bp, reconstructed_adjacencies, ambiguous_components, adj_weight_per_comp):
+def max_adjacencies_from_cycles(bp, reconstructed_adjacencies, ambiguous_components, adj_weight_per_comp, add_open_2_cycles=False):
     # AA and BB paths are self-closed, so basically a regular path:
     for c_type in [CType.AA_PATH, CType.BB_PATH, CType.CYCLE, CType.PATH]:
         for idx, component in enumerate(bp.type_dict[c_type]):
+            # if c_type == CType.AA_PATH or c_type == CType.BB_PATH:
+            #     c_type = CType.CYCLE
             if len(component) < 2:
                 continue
             # only cycle == 2 can be accepted here; paths only in the
             # find_unique recursion.
             if c_type == CType.CYCLE and len(component) == 2:
+            # if c_type != CType.PATH and len(component) == 2:
+                # print "ADD cycle:",sorted(component)
                 reconstructed_adjacencies.add(tuple(sorted(component)))
                 continue
+            if add_open_2_cycles:
+              if c_type in [CType.AA_PATH, CType.BB_PATH] and len(component) == 2:
+                  reconstructed_adjacencies.add(tuple(sorted(component)))
+                  adj = tuple(sorted(component))
+                  print "ADD:",adj, "W:",adj_weight_per_comp[c_type][idx]
+                  continue
 
             if c_type == CType.PATH:
                 # paths need extra "telomere(s)"
@@ -401,6 +519,25 @@ def max_adjacencies_from_cycles(bp, reconstructed_adjacencies, ambiguous_compone
             else:
                 ambiguous_components.append({'c': component, 'type': c_type})
 
+# Find closest leafs to current internal node:
+def closest_leafs_from_node(tree, node_label):
+  search_tree = Tree(tree)
+  median_node = search_tree.find_node_with_label(node_label)
+  search_tree.reroot_at_node(median_node)
+  leaf_distance = {}
+
+  # try to use edge lengths; if not available, fall back to DCJ distance:
+  # It seems that traversing edge lengths works better, specially for higher nodes where DCJ distance starts to be
+  # not so precise due to fragmentation and saturation.
+  # UPDATE: now that we have estimated branch lengts at least, just BL then.
+  for node in search_tree.preorder_node_iter():
+      if node.label == node_label:
+          leaf_distance[node] = 0
+      else:
+          leaf_distance[node] = node.edge_length + \
+              leaf_distance[node.parent_node]
+  return sorted([(leaf.label, leaf_distance[leaf]) for leaf in search_tree.leaf_node_iter()],
+                        key=lambda x: x[1])
 
 def adjacencies_from_median(label, reconstructed_adjacencies, ambiguous_components, current_tree, genomes):
     """
@@ -408,31 +545,12 @@ def adjacencies_from_median(label, reconstructed_adjacencies, ambiguous_componen
     to minimise distance to these leafs.
     """
 
-    # build current genome to then do a BP:
+    # find closest leafs:
+    sorted_leafs = closest_leafs_from_node(current_tree, label)
+
+    # build current genome to then do a BP for each leaf:
     reconstructed_genome = Genome.from_adjacency_list(
         label, reconstructed_adjacencies)
-    # closest leafs by traversal:
-    search_tree = Tree(current_tree)
-    median_node = search_tree.find_node_with_label(label)
-    search_tree.reroot_at_node(median_node)
-    leaf_distance = {}
-
-    # try to use edge lengths; if not available, fall back to DCJ distance:
-    # It seems that traversing edge lengths works better, specially for higher nodes where DCJ distance starts to be
-    # not so precise due to fragmentation and saturation.
-    try:
-        for node in search_tree.preorder_node_iter():
-            if node.label == label:
-                leaf_distance[node] = 0
-            else:
-                leaf_distance[node] = node.edge_length + \
-                    leaf_distance[node.parent_node]
-        sorted_leafs = sorted([(leaf.label, leaf_distance[leaf]) for leaf in search_tree.leaf_node_iter()],
-                              key=lambda x: x[1])
-    except TypeError:
-        # closest leafs by DCJ distance:
-        sorted_leafs = sorted([(leaf.label, dcj.dcj_distance(reconstructed_genome, genomes[leaf.label])) for leaf in
-                               search_tree.leaf_node_iter()], key=lambda x: x[1])
 
     # TODO: distance threshold? or just take 3,4 closest genomes:
     for leaf_label, dcj_dist in sorted_leafs[:3]:
