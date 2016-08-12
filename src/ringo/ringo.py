@@ -10,8 +10,8 @@ import algorithms
 import plot_bp
 from model import BPGraph, CType, Genome, Chromosome
 from pyx import canvas, style, color
-from ringo_config import RingoConfig
 import sys
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Solves the Small Phylogeny problem with I.G. InDel")
@@ -30,7 +30,16 @@ if __name__ == '__main__':
     parser.add_argument("-p", "--perfect", action="store_true", default=False, help="Force perfect matching for the maximum weight matching of open components.")
     parser.add_argument("-bl", "--estimate_lenghts", type=str, choices=["lp", "least_squares"], help="Estimate tree branch lenghts, greatly improves RINGO results if the input tree does not have branch lengths. Choose one of the available methods.")
     parser.add_argument("-bp", action="store_true", default=False, help="Writes PDFs files each with a plot of the Breakpoint Graph between two siblings that was used to reconstruct the parent node.")
+    parser.add_argument("-a", "--ancestral", type=str, help="Ancestral genomes file for a simulation. Can be used to draw the ancestors in the BP plot.")
+
+    parser.add_argument("-r", "--random_repeat", type=int, default=0, help="Number of repeats of randomly fill adjacencies, reNumber of randomly repeats of  ")
+
+    # DEBUG:
+    parser.add_argument("--add_open_2_cycles", action="store_true", default=False, help="adds adjacencies from 2-cycles that are AA- or BB-open directly.")
+
+    # PARSE params:
     param = parser.parse_args()
+
 
     # test if blossom5 is needed:
     if param.perfect:
@@ -61,7 +70,8 @@ if __name__ == '__main__':
         # if weights are given, use: (usually DeClone weights):
         internalAdjWeight = file_ops.open_ancestral_weights(param.adj_weights_file, cutoff=param.weight_filter)
 
-    reconstructed = algorithms.ig_indel_small_phylogeny(leaf_genomes, tree, internalAdjWeight, perfect_matching=param.perfect)
+    reconstructed = algorithms.ig_indel_small_phylogeny(leaf_genomes, tree, internalAdjWeight,
+                        perfect_matching=param.perfect, random_repeat=param.random_repeat, add_open_2_cycles=param.add_open_2_cycles)
 
     # output:
     if param.output is None:
@@ -77,6 +87,8 @@ if __name__ == '__main__':
     # Save parameters:
     file_ops.write_ringo_parameters(param, folder)
 
+    # ancestral genomes:
+    ancestral = file_ops.open_genome_file(param.ancestral) if param.ancestral is not None else None
     # BP graph plot:
     if param.bp:
         reconstructed.update(leaf_genomes)
