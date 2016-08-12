@@ -140,7 +140,7 @@ def write_genomes_to_file(genomes_dict, filename, write_chr_line=True):
                                      CIRCULAR_END_CHR if chromosome.circular else LINEAR_END_CHR))
 
 
-def open_newick_tree(filename, label_internal_nodes=False):
+def open_newick_tree(filename, label_internal_nodes=True):
     """
     Open a tree file in NEWICK format
     """
@@ -232,6 +232,27 @@ def write_declone_weights(singleLeafAdj, internalWeights, extantWeights, kT, fol
         for adj in extantWeights[leaf]:
             file.write('>' + str(leaf) + '\t' + str(adj) + '\n')
     file.close()
+
+def load_ancestral_genomes(folder, method, location):
+    #Treat each special case:
+    if method.lower() == "mgra":
+        if location == "":
+            location = cfg.mgra_output_folder()
+        reconstructed = open_mgra_genomes(
+            os.path.join(folder, location))
+    elif method.lower() == "ringo":
+        reconstructed = open_genome_file(
+            os.path.join(folder, location, cfg.ringo_output_genomes()))
+    elif method.lower() == "physca":
+        reconstructed = open_adjacencies_file(
+            os.path.join(folder, location, cfg.physca_reconstructed_adjacencies()))
+    elif method.lower() == "mlgo":
+        reconstructed = open_genome_file(
+            os.path.join(folder, location, cfg.mlgo_output_genomes()))
+    else:  # passing in location the path with genome file name should also work
+        reconstructed = open_genome_file(os.path.join(folder, location))
+
+    return reconstructed
 
 # I/O JSON parameters:
 def __read_parameters(filename):
