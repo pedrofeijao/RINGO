@@ -243,6 +243,9 @@ class Simulation:
         file_ops.write_genomes_to_file(self.ancestral_genomes, os.path.join(output, cfg.sim_ancestral_genomes()))
 
         # Software-specific files:
+        # MLGO, and maybe others, doesn't like the "#" lines; output a 'simple' version:
+        file_ops.write_genomes_to_file(self.leaf_genomes, os.path.join(output, cfg.sim_leaf_simple_genomes()), write_chr_line=False)
+
         # MGRA2:
         file_ops.write_mgra2_config(self.leaf_genomes, tree, os.path.join(output, cfg.sim_mgra_config()))
 
