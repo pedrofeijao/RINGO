@@ -44,9 +44,9 @@ _n_genomes=6
 _n_genes=100
 _n_chr=1
 _indel_perc=0.2
-_scale=2
+_scale=1.5
 _disturb=1
-_indel_length=5
+_indel_length=4
 _n_chr=1
 _ringo_weights="custom_weight.txt"
 _kt=0.4
@@ -61,15 +61,15 @@ _physca=$(awk -F "=" '/physca_path/ {print $2}' ringo.cfg)
 ###############################################################################
 # Options from config:
 ###############################################################################
-_declone_weights=$(awk -F "=" '/declone_internal_weight/ {print $2}' ringo.cfg)
-_declone_extant_weights=$(awk -F "=" '/declone_extant_weight/ {print $2}' ringo.cfg)
-_sim_tree=$(awk -F "=" '/sim_tree/ {print $2}' ringo.cfg)
-_leaf_genomes=$(awk -F "=" '/sim_leaf_genomes/ {print $2}' ringo.cfg)
-_ancestral_genomes=$(awk -F "=" '/sim_ancestral_genomes/ {print $2}' ringo.cfg)
-_mgra_config=$(awk -F "=" '/sim_mgra_config/ {print $2}' ringo.cfg)
-_mgra_output=$(awk -F "=" '/mgra_output_folder/ {print $2}' ringo.cfg)
-_scj_genomes=$(awk -F "=" '/scj_genomes/ {print $2}' ringo.cfg)
-_physca_output=$(awk -F "=" '/physca_output_folder/ {print $2}' ringo.cfg)
+_declone_weights=$(awk -F "=" '/declone_internal_weight=/ {print $2}' ringo.cfg)
+_declone_extant_weights=$(awk -F "=" '/declone_extant_weight=/ {print $2}' ringo.cfg)
+_sim_tree=$(awk -F "=" '/sim_tree=/ {print $2}' ringo.cfg)
+_leaf_genomes=$(awk -F "=" '/sim_leaf_genomes=/ {print $2}' ringo.cfg)
+_ancestral_genomes=$(awk -F "=" '/sim_ancestral_genomes=/ {print $2}' ringo.cfg)
+_mgra_config=$(awk -F "=" '/sim_mgra_config=/ {print $2}' ringo.cfg)
+_mgra_output=$(awk -F "=" '/mgra_output_folder=/ {print $2}' ringo.cfg)
+_scj_genomes=$(awk -F "=" '/scj_genomes=/ {print $2}' ringo.cfg)
+_physca_output=$(awk -F "=" '/physca_output_folder=/ {print $2}' ringo.cfg)
 
 ###############################################################################
 # Program Functions
@@ -187,7 +187,7 @@ _run_physca() {
 }
 
 _parse_sim() {
-  ./parse_sims.py -a ${ALGS[*]} -f test_all_output
+  ./parse_sims.py -a ${ALGS[*]} -f test_all_output -t 4
 }
 ###############################################################################
 # Main
