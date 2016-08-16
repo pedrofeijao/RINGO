@@ -1,7 +1,3 @@
-import collections
-import copy
-import sys
-
 __author__ = 'pfeijao'
 
 

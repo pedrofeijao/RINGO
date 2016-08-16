@@ -56,9 +56,6 @@ def draw_bp_graph(c, bp, g1, g2, component_list=None, x_offset=0, y_offset=0, in
                 n += 2
             else:
                 n += 1
-        # print n
-        # if n == 2:
-        #     continue
         for x, ext in enumerate(component['c']):
             pos[ext] = (math.cos(2 * math.pi / n * x) * COMP_RADIUS + x_offset,
                          math.sin(2 * math.pi / n * x) * COMP_RADIUS + y_offset)

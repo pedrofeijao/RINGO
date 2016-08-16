@@ -24,13 +24,11 @@ def random_adjacencies_from_cycle(cycle):
     if len(cycle) == 0:
         return []
     assert len(cycle) % 2 == 0
-    # print "C", cycle
     pos = random.randint(0,(len(cycle)/2)-1) * 2 + 1
     adj = cycle[0], cycle[pos]
     return random_adjacencies_from_cycle(cycle[1:pos])+ [adj] + random_adjacencies_from_cycle(cycle[(pos+1):])
 
 def random_adjacencies_from_cycles(cycle_list):
-    # print "CL:", cycle_list
     return [adj for adjacencies in [random_adjacencies_from_cycle(cycle) for cycle in cycle_list] for adj in adjacencies]
 
 def random_adjacencies_from_list(adj_list):
@@ -219,7 +217,6 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
 
 
     def complete_with_random_adjacencies(genomes, label, tree, reconstructed_adjacencies, ambiguous_components, random_repeats, bp, node):
-        # print "AMBIG:",set([c['type'] for c in ambiguous_components])
         # find closest leaf:
         sorted_leafs = closest_leafs_from_node(tree, label)
         closest_label, closest_dist = sorted_leafs[0]
@@ -276,17 +273,9 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
               # If it is circular, always remove:
               if chrom.circular:
                   no_indel.remove(chrom)
-                  # print "Remove:",chrom
                   continue
               # if linear, use the "guess":
               guess = [abs(g) in ancestral_gene_set for g in chrom]
-
-              # gene_in = [abs(g) in perfect[label].gene_set() for g in chrom]
-              # if cmp(guess, gene_in) != 0:
-              #     print "Circular:", chrom.circular, "Weights:", guess, "avg:", sum(guess) / len(guess)
-              #     print "Gene In ancestral:", gene_in
-              #     print "Adj in ancestral:", [adj in perfect[label].adjacency_set() for adj in chrom.adjacency_set()]
-              #     print
 
               # if all are good, continue without removing; else, break the chromosome into
               # parts that are good.
@@ -352,7 +341,6 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
         max_adjacencies_from_cycles(
             bp, reconstructed_adjacencies, ambiguous_components, adj_weight_per_comp,
              add_open_2_cycles=add_open_2_cycles)
-        # print reconstructed_adjacencies
 
         # == Find the matching weights and solve max matching to find the maximum weight completion,
         # also adding to the reconstructed adjacencies.
@@ -384,7 +372,6 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
           graph = nx.Graph()
           for adj, w in ancestral_weight.iteritems():
             if w>0.9 and all([(ext in unmatched) for ext in adj]):
-              # print "AD:",adj,w
               graph.add_edge(adj[0], adj[1], weight=w)
 
           idx_to_v, v_to_idx, edges = build_vertex_edges_for_mwm(graph)
@@ -409,7 +396,6 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
         # add to the list of genomes:
         genomes[label] = reconstructed_genome
 
-        # print "G:", reconstructed_genome
         # Final step - prune dynamic tree:
         # prune the leaves, internal node becomes leaf;
         new_leaf = dynamic_tree.find_node_with_label(label)
@@ -478,7 +464,6 @@ def max_adjacencies_from_cycles(bp, reconstructed_adjacencies, ambiguous_compone
               if c_type in [CType.AA_PATH, CType.BB_PATH] and len(component) == 2:
                   reconstructed_adjacencies.add(tuple(sorted(component)))
                   adj = tuple(sorted(component))
-                  print "ADD:",adj, "W:",adj_weight_per_comp[c_type][idx]
                   continue
 
             if c_type == CType.PATH:
@@ -653,7 +638,7 @@ def __estimate_branch_lengths(tree, extant_genomes, method):
       # alternatively: least squares:
       result = lstsq(A, b)[0]
     else:
-      print >> sys.stderr, "Unknown method for branch lenght estimation, skipping..."
+      print >> sys.stderr, "Unknown method for branch length estimation, skipping..."
       return
     # Apply the lengths in the tree:
     for e, x in zip(edges, result):
