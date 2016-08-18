@@ -173,17 +173,22 @@ _run_mgra() {
 
 _run_physca() {
   printf "=== Trying to run PhySCA...\n"
-  if [ -e $_physca ]; then
-    printf "PhySca found, running...\n"
-    mkdir -p $_out_folder/$_physca_output
-    command="python $_physca -tree $_out_folder/$_sim_tree -alpha 0.5 -internal $_out_folder/${_declone_weights}${_kt} -extant $_out_folder/${_declone_extant_weights}${_kt} -out $_out_folder/$_physca_output"
-    printf "$command\n"
-    $command > $_out_folder/$_physca_output/physca.out
-    ALGS+=("PhySca,physca,$_physca_output")
-    printf "Done.\n\n"
-  else
-    printf "PhySca not found, skipping. If you want to run PhySca, please install it and edit 'ringo.cfg' to indicate the executable path.\n\n"
-  fi
+    if [ -e $_physca ]; then
+      if command -v $_declone >/dev/null 2>&1; then
+        printf "PhySca found, running...\n"
+        mkdir -p $_out_folder/$_physca_output
+        command="python $_physca -tree $_out_folder/$_sim_tree -alpha 0.5 -internal $_out_folder/${_declone_weights}${_kt} -extant $_out_folder/${_declone_extant_weights}${_kt} -out $_out_folder/$_physca_output"
+        printf "$command\n"
+        $command > $_out_folder/$_physca_output/physca.out
+        ALGS+=("PhySca,physca,$_physca_output")
+        printf "Done.\n\n"
+      else
+        printf "PhySca found, but DeClone not, it is needed for PhySca. Please install it and edit 'ringo.cfg' to indicate the executable path.\n\n"
+      fi
+    else
+      printf "PhySca not found, skipping. If you want to run PhySca, please install it and edit 'ringo.cfg' to indicate the executable path.\n\n"
+    fi
+
 }
 
 _parse_sim() {
