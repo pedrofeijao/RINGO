@@ -7,7 +7,6 @@ import os
 import scj
 import file_ops
 from model import Genome
-from ringo_config import RingoConfig
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="SCJ algorithms.")
     parser.add_argument("-i", "--input_genomes", required=True, type=str, help="Leaf genomes file.")
