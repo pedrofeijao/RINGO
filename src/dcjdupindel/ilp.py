@@ -1,9 +1,15 @@
 #!/usr/bin/env python2
+import pyximport; pyximport.install()
 import os
 import sys
 import itertools
 import operator
+# TODO: this is a hack to import from other directory; should use packages
+ringo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../ringo"))
+print ringo_path
+os.sys.path.insert(0, ringo_path)
 import file_ops
+
 from gurobipy import *
 
 class Ext:
@@ -11,15 +17,10 @@ class Ext:
     TAIL = 't'
 
 
-def ilp(genome_a, genome_b):
-    # def vertex_name(genome, gene, copy, is_tail):
-    #     return "%s%s_%s%s" % (genome, gene, copy, "t" if is_tail else "h")
-
+def dcj_dupindel_ilp(genome_a, genome_b):
     def vertex_name(genome, gene, copy, ext):
         return "%s%s_%s%s" % (genome, gene, copy, ext)
 
-    # def matching_edge_name(gene, copyA, copyB, is_tail):
-    #     return "x_%s_%s" % (vertex_name("A", gene, copyA, is_tail), vertex_name("B", gene, copyB, is_tail))
     def matching_edge_name(gene, copyA, copyB, ext):
         return "x_%s,%s" % (vertex_name("A", gene, copyA, ext), vertex_name("B", gene, copyB, ext))
 
@@ -153,7 +154,7 @@ def ilp(genome_a, genome_b):
             constraints.append("%d z_%s - y_%s <= 0" % (i, i, i))
 
     # number of genes, to fix distance:
-    constraints.append("n = %d" % (sum(gene_count.itervalues()) + n_telomeres/2))
+    constraints.append("n = %d" % (sum(gene_count.itervalues()) + n_telomeres / 2))
     bounds = []
     for i in sorted(label.itervalues()):
         bounds.append("y_%d <= %d" % (i, i))
@@ -194,59 +195,35 @@ def ilp(genome_a, genome_b):
     # number of genes:
     general.append("n")
     # objective function:
-    objective = ["obj: n - " + " - ".join(["z_%d" % i for vertex, i in sorted(label.items(), key=operator.itemgetter(1)) if vertex[0] != "B"])]
-
+    objective = ["obj: n - " + " - ".join(
+        ["z_%d" % i for vertex, i in sorted(label.items(), key=operator.itemgetter(1)) if vertex[0] != "B"])]
 
     # PRINT:
     output = "%s.lp" % os.path.basename(sys.argv[1])
     with open(output, "w") as f:
-        for header, lines in [("Minimize", objective), ("Subject to", constraints), ("Bounds", bounds), ("Binary", binary), ("General", general)]:
+        for header, lines in [("Minimize", objective), ("Subject to", constraints), ("Bounds", bounds),
+                              ("Binary", binary), ("General", general)]:
             print >> f, header
             print >> f, "\n".join(lines)
 
     # pycharm complains of gurobi commands, cannot see them from the import
     model = read(output)
+
+    # set some options:
+    # time limit in seconds:
+    model.params.timeLimit = 60
+
     model.optimize()
 
     if model.status == GRB.Status.OPTIMAL:
         print('FINISHED: Optimal objective: %g' % model.objVal)
     else:
         print('Optimization ended with status %d' % model.status)
-        exit(0)
 
-    model.params.outputFlag = 0
-    print('')
-    for k in range(model.solCount):
-        model.params.solutionNumber = k
-        objn = 0
-        for v in model.getVars():
-            objn += v.obj * v.xn
-        print('Solution %d has objective %g' % (k, objn))
-    print('')
-    model.params.outputFlag = 1
-
-    fixed = model.fixed()
-    fixed.params.presolve = 0
-    fixed.optimize()
-
-    if fixed.status != GRB.Status.OPTIMAL:
-        print("Error: fixed model isn't optimal")
-        exit(1)
-
-    diff = model.objVal - fixed.objVal
-
-    if abs(diff) > 1e-6 * (1.0 + abs(model.objVal)):
-        print('Error: objective values are different')
-        exit(1)
-
-    # Print values of nonzero variables
-    # for v in fixed.getVars():
-    #     if v.x != 0:
-    #         if v.varName[0] == "w":
-    #             print('%s %g' % (v.varName, v.x))
+    return model
 
 
 if __name__ == '__main__':
     g = file_ops.open_genome_file(sys.argv[1])
     genomes = g.values()
-    ilp(genomes[0], genomes[1])
+    dcj_dupindel_ilp(genomes[0], genomes[1])
