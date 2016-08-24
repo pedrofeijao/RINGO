@@ -20,7 +20,7 @@ __author__ = 'pfeijao'
 
 # noinspection PyClassHasNoInit
 class EventType:
-    REARRANGEMENT, DELETION, INSERTION = range(3)
+    REARRANGEMENT, DELETION, INSERTION, DUPLICATION = range(4)
 
 # noinspection PyClassHasNoInit
 class RearrangementType:
@@ -28,19 +28,22 @@ class RearrangementType:
 
 
 class SimParameters:
-    def __init__(self, num_genes=0, num_chr=0, indel_perc=0, indel_length=0, rate=0, scale=0, disturb=0):
+    def __init__(self, num_genes=0, num_chr=0, del_p=0, ins_p=0, indel_length=0, duplication_p=0,
+                 duplication_length=0, rate=0, scale=0, disturb=0):
         self.num_genes = num_genes
         self.num_chr = num_chr
-        self.indel_perc = indel_perc
+        self.deletion_p = del_p
+        self.insertion_p = ins_p
         self.indel_length = indel_length
+        self.duplication_p = duplication_p
+        self.duplication_length = duplication_length
         self.rate = rate
         self.scale = scale
         self.disturb = disturb
         # Rearrangement, Insertion and Deletion prob:
-        self.rearrangement_p = 1 - indel_perc
-        self.insertion_p = indel_perc/2
-        self.deletion_p = indel_perc/2
+        self.rearrangement_p = 1 - del_p - ins_p - duplication_p
 
+        assert self.rearrangement_p + self.insertion_p + self.deletion_p + self.duplication_p == 1
         # Rearrangement probabilities: # TODO: include as parameter; as of now, only reversals and transloc.
         if num_chr > 1:
             self.reversal_p = 0.9
@@ -94,6 +97,15 @@ class Simulation:
             chromosomes[1].gene_order[bp2:], chromosomes[0].gene_order[bp1:]
 
     @staticmethod
+    def apply_random_tandem_duplication(genome, duplication_length_range):
+        chromosome = np.random.choice(genome.chromosomes)
+        bp = np.random.choice(chromosome.length())
+        length = np.random.choice(duplication_length_range)
+        if bp + length > chromosome.length():
+            length = chromosome.length() - bp
+        chromosome.gene_order[bp:bp] = chromosome.gene_order[bp:bp + length]
+
+    @staticmethod
     def apply_random_deletion(genome, deletion_length_range):
         chromosome = np.random.choice(genome.chromosomes)
         bp = np.random.choice(chromosome.length())
@@ -114,18 +126,21 @@ class Simulation:
         return gene + length
 
 
-    def apply_random_events(self, genome, n, current_insertion_gene):
+    @staticmethod
+    def apply_random_events(param, genome, n, current_insertion_gene):
         rearrangement_count = 0
         insertion_count = 0
         deletion_count = 0
-        param = self.sim_parameters
+        duplication_count = 0
+        # param = self.sim_parameters
 
         insertion_length_range = xrange(1, param.indel_length+1)
         deletion_length_range = xrange(1, param.indel_length+1)
+        duplication_length_range = xrange(1, param.duplication_length+1)
 
         # choose events and apply:
-        events = np.random.choice([EventType.REARRANGEMENT, EventType.INSERTION, EventType.DELETION], n,
-                                  p=[param.rearrangement_p, param.insertion_p, param.deletion_p])
+        events = np.random.choice([EventType.REARRANGEMENT, EventType.INSERTION, EventType.DELETION, EventType.DUPLICATION], n,
+                                  p=[param.rearrangement_p, param.insertion_p, param.deletion_p, param.duplication_p])
 
         for event in events:  # number of events, can be weighted by 'scaling' parameters
             if event == EventType.REARRANGEMENT:
@@ -148,9 +163,13 @@ class Simulation:
             elif event == EventType.INSERTION:
                 current_insertion_gene = Simulation.apply_random_insertion(genome, current_insertion_gene, insertion_length_range)
                 insertion_count += 1
+            elif event == EventType.DUPLICATION:
+                Simulation.apply_random_tandem_duplication(genome, duplication_length_range)
+                duplication_count += 1
+
             else:
                 raise RuntimeError("Unknown evolutionary event.")
-        return rearrangement_count, insertion_count, deletion_count, current_insertion_gene
+        return rearrangement_count, insertion_count, deletion_count, duplication_count, current_insertion_gene
 
 
     def run_simulation(self):
@@ -184,8 +203,8 @@ class Simulation:
                 weight = ev_node.edge.length
 
                 # evolution
-                rearrangements, insertions, deletions, current_insertion_gene = \
-                    self.apply_random_events(current_genome, int(weight), current_insertion_gene)
+                rearrangements, insertions, deletions, duplications, current_insertion_gene = \
+                    Simulation.apply_random_events(param, current_genome, int(weight), current_insertion_gene)
 
                 # update count of events:
                 ev_node.rearrangements = ev_node.parent_node.rearrangements + rearrangements
@@ -294,7 +313,10 @@ if __name__ == '__main__':
     parser.add_argument("-n", "--num_genes", type=int, default=100, help="Number of genes in the root genome.")
     parser.add_argument("-c", "--num_chr", type=int, default=5, help="Number of chromosomes in the root genome.")
     parser.add_argument("-o", "--output", type=str, default="sim", help="Name of the output folder.")
-    parser.add_argument("-i",    "--indel", type=float, default=0.0, help="Percentage of indels, from 0 to 1.0")
+    parser.add_argument("-dp", "--deletion_p", type=float, default=0.0, help="Percentage of deletions, from 0 to 1.0")
+    parser.add_argument("-ip", "--insertion_p", type=float, default=0.0, help="Percentage of insertions, from 0 to 1.0")
+    parser.add_argument("-dup_p", "--duplication_p", type=float, default=0.0, help="Percentage of duplications, from 0 to 1.0")
+    parser.add_argument("-dl",  "--duplication_length", type=int, default=5, help="Maximum length of duplication event.")
     parser.add_argument("--indel_length", type=int, default=5, help="Maximum size of indel event in genes.")
     scaling = parser.add_mutually_exclusive_group(required=False)
     scaling.add_argument("-r", "--rate", type=float, default=1, help="Multiplier on the input tree number of events.")
@@ -311,7 +333,8 @@ if __name__ == '__main__':
 
     # Simulation parameters:
     sim_par = SimParameters(num_genes=param.num_genes, num_chr=param.num_chr,
-                            indel_perc=param.indel, indel_length=param.indel_length,
+                            del_p=param.deletion_p, ins_p=param.insertion_p, indel_length=param.indel_length,
+                            duplication_p=param.duplication_p, duplication_length=param.duplication_length,
                             rate=param.rate, scale=param.scale, disturb=param.disturb)
     # start sim object;
     sim = Simulation(param.output, sim_par)
