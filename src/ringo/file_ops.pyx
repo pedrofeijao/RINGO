@@ -62,7 +62,7 @@ def open_mgra_genomes(folder):
     return genomes
 
 
-def open_genome_file(filename):
+def open_genome_file(filename, as_list=False):
     """
     Opens a genome file in GRIMM format.
     Example:
@@ -79,7 +79,10 @@ def open_genome_file(filename):
     """
     #TODO: add option for genes as strings. I would have to transform them to numbers, and keep a name dictionary
     # to go back when necessary.
-    genome_list = {}
+    if as_list:
+        genomes = []
+    else:
+        genomes = {}
     with open(filename) as f:
         for line in f:
             line = line.strip()
@@ -88,7 +91,10 @@ def open_genome_file(filename):
             if line.startswith(">"):
                 name = line[1:].strip().split(" ")[0]
                 genome = Genome(name)
-                genome_list[name] = genome
+                if as_list:
+                    genomes.append(genome)
+                else:
+                    genomes[name] = genome
             elif line.startswith("#"):
                 # chromosome; ignore name after, each new line is a new chromosome.
                 continue
@@ -100,7 +106,7 @@ def open_genome_file(filename):
                 else:
                     raise RuntimeError("Invalid genome file %s. Unrecognized line:\n%s" % (filename, line))
                 genome.add_chromosome(Chromosome(map(int, line[:-1].strip().split(" ")), circular))
-    return genome_list
+    return genomes
 
 
 def open_adjacencies_file(filename):
@@ -126,18 +132,43 @@ def open_adjacencies_file(filename):
 
 
 
-def write_genomes_to_file(genomes_dict, filename, write_chr_line=True):
+def write_genomes_to_file(genomes, filename, write_chr_line=True):
     """
     Write genomes in a file with GRIMM format
     """
+    if isinstance(genomes, dict):
+        iterator = genomes.itervalues()
+    elif isinstance(genomes, list):
+        iterator = iter(genomes)
     with open(filename, "w") as f:
-        for label, genome in genomes_dict.iteritems():
-            f.write(">%s\n" % label)
+        for genome in iterator:
+            f.write(">%s\n" % genome.name)
             for idx, chromosome in enumerate(genome.chromosomes):
                 if write_chr_line:
                     f.write("# chr%d\n" % (idx + 1))
                 f.write("%s %s\n" % (" ".join([str(x) for x in chromosome.gene_order]),
                                      CIRCULAR_END_CHR if chromosome.circular else LINEAR_END_CHR))
+
+
+def write_genomes_coser_format(genomes, folder):
+    """
+    Write genomes in a file with COSER format
+    """
+    if isinstance(genomes, dict):
+        iterator = genomes.itervalues()
+    elif isinstance(genomes, list):
+        iterator = iter(genomes)
+
+    for genome in iterator:
+        with open(os.path.join(folder, "%s.coser" % genome.name), "w") as f:
+            idx = 1
+            for chr_id, chrom in enumerate(genome.chromosomes):
+                circular = 2 if chrom.circular else 1
+                for gene in chrom.gene_order:
+                    f.write("g%s\t%d\tchr%d\t%d\n" % (idx, gene, chr_id+1, circular))
+                    idx += 1
+
+
 
 
 def open_newick_tree(filename, label_internal_nodes=True):
