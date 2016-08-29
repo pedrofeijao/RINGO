@@ -18,9 +18,9 @@ class Genome:
                 self.chromosomes.append(Chromosome(gene_order, circular=False))
 
     @staticmethod
-    def identity(num_genes, num_chromosomes):
+    def identity(num_genes, num_chromosomes, name="Identity"):
         genes_per_chr = num_genes / num_chromosomes
-        return Genome("Identity",
+        return Genome(name,
                       [range(c * genes_per_chr + 1, (c + 1) * genes_per_chr + 1) for c in range(num_chromosomes)])
 
     def add_chromosome(self, chromosome):
