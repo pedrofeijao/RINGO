@@ -503,7 +503,7 @@ if __name__ == '__main__':
     param = parser.parse_args()
 
     genomes = file_ops.open_genome_file(param.file, as_list=True)
-    filename = "%s_%d_%d.lp" % (os.path.basename(param.file), param.g1, param.g2)
+    filename = "%s_%d_%d%s.lp" % (os.path.basename(param.file), param.g1, param.g2, "_unitary" if param.unitary else "")
     if param.unitary:
         dcj_dupindel_ilp_unitary(genomes[param.g1], genomes[param.g2], filename)
     else:
