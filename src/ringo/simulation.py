@@ -106,6 +106,17 @@ class Simulation:
         chromosome.gene_order[bp:bp] = chromosome.gene_order[bp:bp + length]
 
     @staticmethod
+    def apply_random_segmental_duplication(genome, duplication_length_range):
+        chromosome = np.random.choice(genome.chromosomes)
+        bp = np.random.choice(chromosome.length())
+        length = np.random.choice(duplication_length_range)
+        if bp + length > chromosome.length():
+            length = chromosome.length() - bp
+        # position:
+        position = np.random.choice(range(bp) + range(bp+length, chromosome.length()))
+        chromosome.gene_order[position:position] = chromosome.gene_order[bp:bp + length]
+
+    @staticmethod
     def apply_random_deletion(genome, deletion_length_range):
         chromosome = np.random.choice(genome.chromosomes)
         bp = np.random.choice(chromosome.length())
@@ -164,7 +175,8 @@ class Simulation:
                 current_insertion_gene = Simulation.apply_random_insertion(genome, current_insertion_gene, insertion_length_range)
                 insertion_count += 1
             elif event == EventType.DUPLICATION:
-                Simulation.apply_random_tandem_duplication(genome, duplication_length_range)
+                # Simulation.apply_random_tandem_duplication(genome, duplication_length_range)
+                Simulation.apply_random_segmental_duplication(genome, duplication_length_range)
                 duplication_count += 1
 
             else:
