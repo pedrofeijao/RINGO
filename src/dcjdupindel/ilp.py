@@ -1,6 +1,11 @@
 #!/usr/bin/env python2
 import argparse
-import pyximport; pyximport.install()
+import copy
+
+import pyximport;
+from math import factorial
+
+pyximport.install()
 import os
 import sys
 import itertools
@@ -12,6 +17,7 @@ ringo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../ringo")
 print ringo_path
 os.sys.path.insert(0, ringo_path)
 import file_ops
+
 
 class Ext:
     HEAD = 'h'
@@ -73,9 +79,70 @@ def build_chromosome_ext_order(copy_number, chrom):
     return adj_list
 
 
+def fix_conserved_adjacencies(edges, genome_a, genome_b, gene_count, gene_count_a, gene_count_b, max_chromosomes):
+    # EDGE FIXING:
+    # 1 - conserved adjacencies (a,b) where one of the families is fixed (either singleton or fixed in any other way)
+    adj_dict = {"A": {}, "B": {}}
+    for genome, gene_count, name in [(genome_a, gene_count_a, "A"), (genome_b, gene_count_b, "B")]:
+        ext_list = build_extremity_order_lists(genome, gene_count, max_chromosomes)
+        for ext_order in ext_list:
+            a = iter(range(len(ext_order)))
+            for i, j in itertools.izip(a, a):
+                gene_i, copy_i, ext_i = ext_order[i]
+                gene_j, copy_j, ext_j = ext_order[j]
+                if gene_count[gene_i] == 1 or gene_count[gene_j] == 1:
+                    adj_i = gene_i if ext_i == Ext.HEAD else -gene_i
+                    adj_j = gene_j if ext_j == Ext.TAIL else -gene_j
+                    if adj_i < 0:
+                        adj_i, adj_j = -adj_j, -adj_i
+                    adj_dict[name][(adj_i, adj_j)] = (gene_i, copy_i, ext_i), (gene_j, copy_j, ext_j)
+
+    new_round = True
+
+    while new_round:
+        # print "Mates:", len(mate_vertex)
+        # print mate_vertex
+        # print
+        new_round = False
+        for adj in sorted(adj_dict["A"].iterkeys()):
+            (gene_a_i, gene_a_j) = adj_dict["A"][adj]
+            # if this adjacency is conserved in B:
+            if adj in adj_dict["B"]:
+                gene_b_i, gene_b_j = adj_dict["B"][adj]
+                # reverse adjacency to match genes if necessary:
+                if (gene_a_i[0], gene_a_i[2]) != (gene_b_i[0], gene_b_i[2]):
+                    gene_b_i, gene_b_j = gene_b_j, gene_b_i
+                #
+                gene_i, copy_a_i = gene_a_i[0], gene_a_i[1]
+                gene_j, copy_a_j = gene_a_j[0], gene_a_j[1]
+                copy_b_i = gene_b_i[1]
+                copy_b_j = gene_b_j[1]
+
+                pair_a_i = (gene_i, copy_a_i)  # gene, copy (without tail/head)
+                pair_a_j = (gene_j, copy_a_j)  # gene, copy (without tail/head)
+                # if (a_i,b_i) are fixed, we can try to fix the a_j,b_j:
+                if edges[pair_a_i] == {copy_b_i}:
+                    # if not fixed yet, fix:
+                    if len(edges[pair_a_j]) > 1:
+                        edges[pair_a_j] = {copy_b_j}
+                        # TODO: remove edges from other nodes, when fixed
+                        # # remove this edge from other copies:
+                        # for idx in xrange(1,gene_count[gene_a_i[0]]+1):
+                        #     if idx == copy_a_j:
+                        #         continue
+                        #     edges[(gene_j, id)]
+                        new_round = True
+                elif edges[pair_a_j] == {copy_b_j}:
+                    if len(edges[pair_a_i]) > 1:
+                        edges[pair_a_i] = {copy_b_i}
+                        new_round = True
+
+
 ####################################################################
 # ILP
 ####################################################################
+# TODO: I'm assuming the genomes are linear, and then treating telomeres;
+# should just circularize with 0 genes;
 def dcj_dupindel_ilp(genome_a, genome_b, output):
     # count of each gene on each genome
     gene_count_a = genome_a.gene_count()
@@ -85,6 +152,24 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     gene_count = {g: max(gene_count_a[g], gene_count_b[g]) for g in
                   set(gene_count_a.keys()).union(set(gene_count_b.keys()))}
 
+    # some useful vars:
+    max_chromosomes = max(genome_a.n_chromosomes(), genome_b.n_chromosomes())
+    n_telomeres = 2 * max_chromosomes
+
+    # list of possible edges for each vertex:
+    edges = {}
+    for gene, copies in gene_count.iteritems():
+        for i in xrange(1, copies + 1):
+            edges[(gene, i)] = set(range(1, copies + 1))
+
+    # telomeres:
+    for i in xrange(1, n_telomeres + 1):
+        edges[(0, i)] = set(range(1, n_telomeres + 1))
+
+    # Fix by conserved adjacencies:
+    # TODO: check the edge removal; I might be creating useless variables that I know are 0.
+    fix_conserved_adjacencies(edges, genome_a, genome_b, gene_count, gene_count_a, gene_count_b, max_chromosomes)
+
     # build constraints:
     constraints = []
     # consistency:
@@ -92,40 +177,39 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     for gene, copies in gene_count.iteritems():
         constraints.append("\\ gene %s" % gene)
         for i, j in itertools.product(xrange(1, copies + 1), xrange(1, copies + 1)):
-            constraints.append(
-                "%s - %s = 0" % (matching_edge_name(gene, i, j, Ext.TAIL), matching_edge_name(gene, i, j, Ext.HEAD)))
+            if edges[(gene, i)] != {j}:
+                constraints.append(
+                    "%s - %s = 0" % (
+                        matching_edge_name(gene, i, j, Ext.TAIL), matching_edge_name(gene, i, j, Ext.HEAD)))
 
     # unique matching: (1-to-1) (only tail, it should suffice, together with the consistency)
-    constraints.append("\\ Unique matching:")
+    constraints.append("\ Unique matching:")
     for gene, copies in gene_count.iteritems():
+        # degree 1 genes are already fixed:
+        if copies == 1:
+            continue
         for i in xrange(1, copies + 1):
             constraints.append(
                 " + ".join([matching_edge_name(gene, i, j, Ext.TAIL) for j in xrange(1, copies + 1)]) + " = 1")
-            # adding the HEAD usually is worse, but sometimes makes things a bit faster, which is strange
-            # because these are redundant constraints.
-            # constraints.append(
-            #     " + ".join([matching_edge_name(gene, i, j, Ext.HEAD) for j in xrange(1, copies + 1)]) + " = 1")
 
-    constraints.append("\\ Telomere matching:")  # special case, "0" gene.
-    max_chromosomes = max(genome_a.n_chromosomes(), genome_b.n_chromosomes())
-    n_telomeres = 2 * max_chromosomes
+    constraints.append("\ Telomere matching:")  # special case, "0" gene.
     for i in range(1, n_telomeres + 1):
         constraints.append(
             " + ".join([matching_edge_name(0, i, j, Ext.TAIL) for j in xrange(1, n_telomeres + 1)]) + " = 1")
 
-    constraints.append("\\ Balancing:")
+    constraints.append("\ Balancing:")
     balancing_A = {g: range(gene_count_a[g] + 1, gene_count_b[g] + 1) for g in gene_count.iterkeys() if
                    gene_count_a[g] < gene_count_b[g]}
     balancing_B = {g: range(gene_count_b[g] + 1, gene_count_a[g] + 1) for g in gene_count.iterkeys() if
                    gene_count_b[g] < gene_count_a[g]}
     for genome, balancing in [("A", balancing_A), ("B", balancing_B)]:
-        constraints.append("\\ Genome %s" % genome)
+        constraints.append("\ Genome %s" % genome)
         for gene_i, copy_i, ext_i in balancing_extremities(balancing):
             constraints.append(" + ".join([balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j) for
                                            gene_j, copy_j, ext_j in balancing_extremities(balancing) if
                                            (gene_i, copy_i, ext_i) != (gene_j, copy_j, ext_j)]) + " = 1")
 
-    constraints.append("\\ Labelling")
+    constraints.append("\ Labelling")
     # define the label -> integer 1..n
     y_label = {}
     idx = 1
@@ -157,14 +241,17 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     for gene, copies in gene_count.iteritems():
         for i in xrange(1, copies + 1):
             for j in xrange(1, copies + 1):
-                constraints.append("\\ Edges (%s%s_%s, %s%s_%s)" % ("A", gene, i, "B", gene, j))
+                constraints.append("\ Edges (%s%s_%s, %s%s_%s)" % ("A", gene, i, "B", gene, j))
                 for ext in [Ext.HEAD, Ext.TAIL]:
                     y_i = y_label[vertex_name("A", gene, i, ext)]
                     y_j = y_label[vertex_name("B", gene, j, ext)]
-                    constraints.append(
-                        "y_%s - y_%s + %s %s <= %d" % (y_i, y_j, y_i, matching_edge_name(gene, i, j, ext), y_i))
-                    constraints.append(
-                        "y_%s - y_%s + %s %s <= %d" % (y_j, y_i, y_j, matching_edge_name(gene, i, j, ext), y_j))
+                    if edges[(gene, i)] == {j}:
+                        constraints.append("y_%s - y_%s = 0 " % (y_i, y_j))
+                    else:
+                        constraints.append(
+                            "y_%s - y_%s + %s %s <= %d" % (y_i, y_j, y_i, matching_edge_name(gene, i, j, ext), y_i))
+                        constraints.append(
+                            "y_%s - y_%s + %s %s <= %d" % (y_j, y_i, y_j, matching_edge_name(gene, i, j, ext), y_j))
 
     constraints.append("\\ Balancing edges with same label:")
     for genome, balancing in [("A", balancing_A), ("B", balancing_B)]:
@@ -197,57 +284,6 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     for i in sorted(y_label.itervalues()):
         bounds.append("y_%d <= %d" % (i, i))
 
-    # EDGE FIXING:
-    # 1 - conserved adjacencies (a,b) where one of the families is singleton;
-    singleton_genes = {g for g in gene_count.iterkeys() if gene_count_a[g] == gene_count_b[g] == 1}
-    adj_dict = {"A": {}, "B": {}}
-    for genome, gene_count, name in [(genome_a, gene_count_a, "A"), (genome_b, gene_count_b, "B")]:
-        ext_list = build_extremity_order_lists(genome, gene_count, max_chromosomes)
-        for ext_order in ext_list:
-            a = iter(range(len(ext_order)))
-            for i, j in itertools.izip(a, a):
-                gene_i, copy_i, ext_i = ext_order[i]
-                gene_j, copy_j, ext_j = ext_order[j]
-                if gene_count[gene_i] == 1 or gene_count[gene_j] == 1:
-                    adj_i = gene_i if ext_i == Ext.HEAD else -gene_i
-                    adj_j = gene_j if ext_j == Ext.TAIL else -gene_j
-                    if adj_i < 0:
-                        adj_i, adj_j = -adj_j, -adj_i
-                    adj_dict[name][(adj_i,adj_j)] = (gene_i, copy_i, ext_i), (gene_j, copy_j, ext_j)
-
-    # print adj_dict
-    mates = {}
-    for adj in sorted(adj_dict["A"].iterkeys()):
-        (gene_a_i, gene_a_j) = adj_dict["A"][adj]
-        if adj in adj_dict["B"]:
-            # import ipdb; ipdb.set_trace()
-            gene_b_i, gene_b_j = adj_dict["B"][adj]
-            if (gene_a_i[0], gene_a_i[2]) != (gene_b_i[0], gene_b_i[2]):
-                gene_b_i, gene_b_j = gene_b_j, gene_b_i
-            if (gene_count_a[gene_a_i[0]] == gene_count_b[gene_b_i[0]] == 1) or \
-                    (gene_count_a[gene_a_j[0]] == gene_count_b[gene_b_j[0]] == 1):
-                # test conflict:
-                if gene_a_i not in mates or mates[gene_a_i] == gene_b_i:
-                    constraints.append("%s = 1" % matching_edge_name(gene_a_i[0], gene_a_i[1], gene_b_i[1], gene_a_i[2]))
-                    # print("%s = 1" % matching_edge_name(gene_a_i[0], gene_a_i[1], gene_b_i[1], gene_a_i[2]))
-                    # print gene_a_i, gene_b_i
-                    rev_ext = Ext.TAIL if gene_a_i[2] == Ext.HEAD else Ext.HEAD
-                    mates[(gene_a_i[0], gene_a_i[1], rev_ext)] = (gene_b_i[0], gene_b_i[1], rev_ext)
-                    mates[(gene_b_i[0], gene_b_i[1], rev_ext)] = (gene_a_i[0], gene_a_i[1], rev_ext)
-                    # print mates
-                    # print
-
-                if gene_a_j not in mates or mates[gene_a_j] == gene_b_j:
-                    constraints.append("%s = 1" % matching_edge_name(gene_a_j[0], gene_a_j[1], gene_b_j[1], gene_a_j[2]))
-                    # print("%s = 1" % matching_edge_name(gene_a_j[0], gene_a_j[1], gene_b_j[1], gene_a_j[2]))
-                    # print gene_a_j, gene_b_j
-                    rev_ext = Ext.TAIL if gene_a_j[2] == Ext.HEAD else Ext.HEAD
-                    mates[(gene_a_j[0], gene_a_j[1], rev_ext)] = (gene_b_j[0], gene_b_j[1], rev_ext)
-                    mates[(gene_b_j[0], gene_b_j[1], rev_ext)] = (gene_a_j[0], gene_a_j[1], rev_ext)
-                    # print mates
-                    # print
-
-
     # variables:
     binary = []
 
@@ -257,18 +293,20 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     for i in range(1, n_telomeres + 1):
         binary.extend([matching_edge_name(0, i, j, Ext.TAIL) for j in xrange(1, n_telomeres + 1)])
 
-    # matching genes:
-    for gene, copies in gene_count.iteritems():
-        for i in xrange(1, copies + 1):
-            for j in xrange(1, copies + 1):
-                for ext in [Ext.HEAD, Ext.TAIL]:
-                    binary.append(matching_edge_name(gene, i, j, ext))
+    # matching edges, skipping fixed pairs.
+    matching = [matching_edge_name(gene, i, j, ext) for gene, copies in gene_count.iteritems() for i in xrange(1, copies + 1)
+         for j in xrange(1, copies + 1) if edges[(gene, i)] != {j} for ext in [Ext.HEAD, Ext.TAIL]]
+    print "%d matching edges" % len(matching)
+    print "Potentially %d matching edges" % sum([2*x ** 2 for x in gene_count.itervalues()])
+    binary.extend(matching)
+
     # balancing edges:
-    for genome, balancing in [("A", balancing_A), ("B", balancing_B)]:
-        for gene_i, copy_i, ext_i in balancing_extremities(balancing):
-            for gene_j, copy_j, ext_j in balancing_extremities(balancing):
-                if (gene_i, copy_i, ext_i) < (gene_j, copy_j, ext_j):
-                    binary.append(balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j))
+    balancing_edges = [balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j) for genome, balancing in
+                   [("A", balancing_A), ("B", balancing_B)]
+                   for gene_i, copy_i, ext_i in balancing_extremities(balancing) for gene_j, copy_j, ext_j in
+                   balancing_extremities(balancing) if (gene_i, copy_i, ext_i) < (gene_j, copy_j, ext_j)]
+    print "%d balancing edges" % len(balancing_edges)
+    binary.extend(balancing_edges)
 
     # z cycles:
     for vertex, i in sorted(y_label.items(), key=operator.itemgetter(1)):
@@ -289,8 +327,8 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
 
     # write:
     with open(output, "w") as f:
-        for header, lines in [("Minimize", objective), ("Subject to", constraints), ("Bounds", bounds),
-                              ("Binary", binary), ("General", general)]:
+        for header, lines in [("Minimize", objective), ("Subject to", constraints),
+                              ("Bounds", bounds), ("Binary", binary), ("General", general)]:
             print >> f, header
             print >> f, "\n".join(lines)
 
@@ -473,7 +511,7 @@ def dcj_dupindel_ilp_unitary(genome_a, genome_b, output):
             print >> f, "\n".join(lines)
 
 
-def solve_ilp(filename):
+def solve_ilp(filename, timelimit=60):
     # import here, so only if actually solving we will need gurobi.
     from gurobipy import read, GRB
     # pycharm complains of gurobi commands, cannot see them from the import
@@ -481,7 +519,7 @@ def solve_ilp(filename):
 
     # set some options:
     # time limit in seconds:
-    model.params.timeLimit = 60
+    model.params.timeLimit = timelimit
 
     model.optimize()
 
@@ -491,6 +529,7 @@ def solve_ilp(filename):
         print('Optimization ended with status %d' % model.status)
 
     return model
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
