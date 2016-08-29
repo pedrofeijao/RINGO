@@ -168,9 +168,6 @@ def write_genomes_coser_format(genomes, folder):
                     f.write("g%s\t%d\tchr%d\t%d\n" % (idx, gene, chr_id+1, circular))
                     idx += 1
 
-
-
-
 def open_newick_tree(filename, label_internal_nodes=True):
     """
     Open a tree file in NEWICK format
