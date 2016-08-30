@@ -10,18 +10,13 @@ import os
 import sys
 import itertools
 import operator
-from model import Genome, Chromosome
+from model import Genome, Chromosome, Ext
 
 # TODO: this is a hack to import from other directory; should use packages
 ringo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../ringo"))
-print ringo_path
 os.sys.path.insert(0, ringo_path)
 import file_ops
 
-
-class Ext:
-    HEAD = 'h'
-    TAIL = 't'
 
 
 # HELPER functions:
@@ -100,9 +95,6 @@ def fix_conserved_adjacencies(edges, genome_a, genome_b, gene_count, gene_count_
     new_round = True
 
     while new_round:
-        # print "Mates:", len(mate_vertex)
-        # print mate_vertex
-        # print
         new_round = False
         for adj in sorted(adj_dict["A"].iterkeys()):
             (gene_a_i, gene_a_j) = adj_dict["A"][adj]
@@ -297,7 +289,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     matching = [matching_edge_name(gene, i, j, ext) for gene, copies in gene_count.iteritems() for i in xrange(1, copies + 1)
          for j in xrange(1, copies + 1) if edges[(gene, i)] != {j} for ext in [Ext.HEAD, Ext.TAIL]]
     print "%d matching edges" % len(matching)
-    print "Potentially %d matching edges" % sum([2*x ** 2 for x in gene_count.itervalues()])
+    # print "Potentially %d matching edges" % sum([2*x ** 2 for x in gene_count.itervalues()])
     binary.extend(matching)
 
     # balancing edges:

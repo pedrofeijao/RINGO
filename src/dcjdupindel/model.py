@@ -56,3 +56,9 @@ class Chromosome:
 
     def clone(self):
         return Chromosome(list(self.gene_order), self.circular)
+
+
+class Ext:
+    HEAD = 'h'
+    TAIL = 't'
+
