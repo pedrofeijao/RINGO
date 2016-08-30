@@ -11,13 +11,13 @@ import sys
 import itertools
 import operator
 from model import Genome, Chromosome, Ext
+import networkx as nx
+from networkx.algorithms import connected_components
 
 # TODO: this is a hack to import from other directory; should use packages
 ringo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../ringo"))
 os.sys.path.insert(0, ringo_path)
 import file_ops
-
-
 
 # HELPER functions:
 def vertex_name(genome, gene, copy, ext):
@@ -60,21 +60,33 @@ def build_extremity_order_lists(genome, gene_count, max_chromosomes):
 
 
 def build_chromosome_ext_order(copy_number, chrom):
-    adj_list = [(0, copy_number[0], Ext.TAIL)]
+    # returns a list of tuplets (gene, copy, extremity) for a given chromosome "chrom",
+    # including telomeres (0-labelled genes).
+
+    ext_list = [(0, copy_number[0], Ext.TAIL)]
     copy_number[0] += 1
     for gene in chrom.gene_order:
         if gene > 0:
             orientation = [Ext.TAIL, Ext.HEAD]
         else:
             orientation = [Ext.HEAD, Ext.TAIL]
-        adj_list.extend([(abs(gene), copy_number[abs(gene)], ext) for ext in orientation])
+        ext_list.extend([(abs(gene), copy_number[abs(gene)], ext) for ext in orientation])
         copy_number[abs(gene)] += 1
-    adj_list.append((0, copy_number[0], Ext.TAIL))
+    ext_list.append((0, copy_number[0], Ext.TAIL))
     copy_number[0] += 1
-    return adj_list
+    return ext_list
 
 
-def fix_conserved_adjacencies(edges, genome_a, genome_b, gene_count, gene_count_a, gene_count_b, max_chromosomes):
+def adjacency_list(genome, gene_count, max_chromosomes):
+    # using the tuplet list generated from "build_extremity_order_lists", outputs a
+    # list of pairs of tuplets, represeting the adjacencies.
+    ext_order_list = build_extremity_order_lists(genome, gene_count, max_chromosomes)
+    for ext_order in ext_order_list:
+        a = iter(ext_order)
+        return itertools.izip(a, a)
+
+
+def fix_conserved_adjacencies(edges, genome_a, genome_b, gene_count_a, gene_count_b, max_chromosomes):
     # EDGE FIXING:
     # 1 - conserved adjacencies (a,b) where one of the families is fixed (either singleton or fixed in any other way)
     adj_dict = {"A": {}, "B": {}}
@@ -130,16 +142,36 @@ def fix_conserved_adjacencies(edges, genome_a, genome_b, gene_count, gene_count_
                         new_round = True
 
 
+def define_y_label(gene_count, n_telomeres):
+    y_label = {}
+    idx = 1
+    for genome in ["A", "B"]:
+        # telomeres: (represented by TAIL always)
+        for i in range(1, n_telomeres + 1):
+            y_label[vertex_name(genome, 0, i, Ext.TAIL)] = idx
+            idx += 1
+        for gene, copies in gene_count.iteritems():
+            for i in xrange(1, copies + 1):
+                y_label[vertex_name(genome, gene, i, Ext.HEAD)] = idx
+                idx += 1
+                y_label[vertex_name(genome, gene, i, Ext.TAIL)] = idx
+                idx += 1
+    return y_label
+
+
 ####################################################################
 # ILP
 ####################################################################
 # TODO: I'm assuming the genomes are linear, and then treating telomeres;
 # should just circularize with 0 genes;
+
+
 def dcj_dupindel_ilp(genome_a, genome_b, output):
     # count of each gene on each genome
     gene_count_a = genome_a.gene_count()
     gene_count_b = genome_b.gene_count()
 
+    gene_count_of = {"A": genome_a.gene_count(), "B": genome_b.gene_count()}
     # find all genes
     gene_count = {g: max(gene_count_a[g], gene_count_b[g]) for g in
                   set(gene_count_a.keys()).union(set(gene_count_b.keys()))}
@@ -147,6 +179,9 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     # some useful vars:
     max_chromosomes = max(genome_a.n_chromosomes(), genome_b.n_chromosomes())
     n_telomeres = 2 * max_chromosomes
+
+    # define the y labels -> integer 1..n
+    y_label = define_y_label(gene_count, n_telomeres)
 
     # list of possible edges for each vertex:
     edges = {}
@@ -160,10 +195,79 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
 
     # Fix by conserved adjacencies:
     # TODO: check the edge removal; I might be creating useless variables that I know are 0.
-    fix_conserved_adjacencies(edges, genome_a, genome_b, gene_count, gene_count_a, gene_count_b, max_chromosomes)
+    fix_conserved_adjacencies(edges, genome_a, genome_b, gene_count_a, gene_count_b, max_chromosomes)
+
+    # Build the BP graph of fixed elements to try to find more variables to fix:
+    G = nx.Graph()
+    # def vertex_name(genome, gene, copy, ext):
+    #    return "%s%s_%s%s" % (genome, gene, copy, ext)
+
+    y_fix = {}
+    for (gene, copy_i), set_y in edges.iteritems():
+        if len(set_y) == 1:
+            copy_j = list(set_y)[0]
+            for ext in [Ext.HEAD, Ext.TAIL]:
+                G.add_edge(("A", gene, copy_i, ext), ("B", gene, copy_j, ext))
+    #
+    for genome, genome_name in [(genome_a, "A"), (genome_b, "B")]:
+        # for i, j in adjacency_list(genome, gene_count, max_chromosomes):
+        for (g_i, c_i, e_i), (g_j, c_j, e_j) in adjacency_list(genome, gene_count, max_chromosomes):
+            G.add_edge((genome_name, g_i, c_i, e_i), (genome_name, g_j, c_j, e_j))
+
+    AB_components = []
+    balancing_fix = {}
+    for comp in connected_components(G):
+        # cycles have all degree 2
+        # print " ".join(comp)
+        degree_one = [v for v in comp if G.degree(v) == 1]
+        # if no degree one vertices, it is a cycle:
+        if len(degree_one) == 0:
+            # get indexes of the y_i:
+            indexes = [(v, y_label[vertex_name(*v)]) for v in comp]
+            min_label = min([x[1] for x in indexes])
+            for v, label in indexes:
+                y_fix[label] = min_label
+        else:
+            genome_i, g_i, c_i, e_i = degree_one[0]
+            genome_j, g_j, c_j, e_j = degree_one[1]
+            i_is_balancing = g_i != 0 and c_i > gene_count_of[genome_i][g_i]
+            j_is_balancing = g_j != 0 and c_j > gene_count_of[genome_j][g_j]
+            # TODO: investigate balancing edges; seems that I'm not finding any
+            # in the datasets, but in my built example it was ok.
+            # print i_is_balancing, j_is_balancing
+            if i_is_balancing and j_is_balancing:
+                # print "BALANCING edge", (genome_i, g_i, c_i, e_i), (genome_j, g_j, c_j, e_j)
+                print "BALANCING edge", (genome_i), (genome_j)
+                # if genome_i == genome_j:  # AA- or BB-path
+                #     balancing_fix[bal]
+
+            # TODO: investigate components where both degree-1 vertices have the same gene on diff genomes;
+            # could it be that I can close them? I tried quickly and I got a larger ILP and run time...
+            # if genome_i != genome_j and g_i == g_j and len(comp) == 4:
+            #     if genome_j == "A":
+            #         genome_i, g_i, c_i, e_i, genome_j, g_j, c_j, e_j = g_j, c_j, e_j, genome_i, g_i, c_i, e_i, genome_j
+            #     edges[(g_i, c_i)] = {c_j}
+            # print "SAME deg1:",
+            # print [(v, G.degree(v)) for v in sorted(comp)]
+            # for g, gen, c, e in comp:
+            #     print "EDGE:", gen,c, "->", edges[(gen, c)]
+            # sys.exit()
+
+                # check if degree one vertices are balancing
+
+
+
+    # for x,y in sorted(y_fix.items(), key=operator.itemgetter(1)):
+    #     print x,y
+
+    # sys.exit()
 
     # build constraints:
     constraints = []
+
+    # fix y:
+    for i, label in y_fix.iteritems():
+        constraints.append("y_%d = %d" % (i,label))
     # consistency:
     constraints.append("\ Consistency constraints")
     for gene, copies in gene_count.iteritems():
@@ -202,32 +306,18 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                                            (gene_i, copy_i, ext_i) != (gene_j, copy_j, ext_j)]) + " = 1")
 
     constraints.append("\ Labelling")
-    # define the label -> integer 1..n
-    y_label = {}
-    idx = 1
-    for genome in ["A", "B"]:
-        # telomeres: (represented by TAIL always)
-        for i in range(1, n_telomeres + 1):
-            y_label[vertex_name(genome, 0, i, Ext.TAIL)] = idx
-            idx += 1
-        for gene, copies in gene_count.iteritems():
-            for i in xrange(1, copies + 1):
-                y_label[vertex_name(genome, gene, i, Ext.HEAD)] = idx
-                idx += 1
-                y_label[vertex_name(genome, gene, i, Ext.TAIL)] = idx
-                idx += 1
 
     # for each adjacency, fix label:
     constraints.append("\\ Adjacency have the same label:")
 
     for genome, genome_name in [(genome_a, "A"), (genome_b, "B")]:
-        ext_order_list = build_extremity_order_lists(genome, gene_count, max_chromosomes)
-        for ext_order in ext_order_list:
-            a = iter(range(len(ext_order)))
-            for i, j in itertools.izip(a, a):
-                v_i = vertex_name(genome_name, *ext_order[i])
-                v_j = vertex_name(genome_name, *ext_order[j])
-                constraints.append("y_%s - y_%s = 0 \\ %s <-> %s " % (y_label[v_i], y_label[v_j], v_i, v_j))
+        for i, j in adjacency_list(genome, gene_count, max_chromosomes):
+            v_i = vertex_name(genome_name, *i)
+            v_j = vertex_name(genome_name, *j)
+            # if already fixed, skip
+            if y_label[v_i] in y_fix and y_label[v_j] in y_fix:
+                continue
+            constraints.append("y_%s - y_%s = 0 \\ %s <-> %s " % (y_label[v_i], y_label[v_j], v_i, v_j))
 
     constraints.append("\\ Matching edges with the same label:")
     for gene, copies in gene_count.iteritems():
@@ -237,6 +327,9 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                 for ext in [Ext.HEAD, Ext.TAIL]:
                     y_i = y_label[vertex_name("A", gene, i, ext)]
                     y_j = y_label[vertex_name("B", gene, j, ext)]
+                    # if already fixed, skip
+                    if y_i in y_fix and y_j in y_fix:
+                        continue
                     if edges[(gene, i)] == {j}:
                         constraints.append("y_%s - y_%s = 0 " % (y_i, y_j))
                     else:
@@ -256,6 +349,10 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                     "\\ Edge (%s%s_%s%s, %s%s_%s%s)" % (genome, gene_i, copy_i, ext_i, genome, gene_j, copy_j, ext_j))
                 y_i = y_label[vertex_name(genome, gene_i, copy_i, ext_i)]
                 y_j = y_label[vertex_name(genome, gene_j, copy_j, ext_j)]
+                if y_i in y_fix and y_j in y_fix:
+                    print "NEW!!!"
+                    continue
+
                 constraints.append("y_%s - y_%s + %s %s <= %d" % (
                     y_i, y_j, y_i, balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j), y_i))
                 constraints.append("y_%s - y_%s + %s %s <= %d" % (
@@ -334,6 +431,9 @@ def dcj_dupindel_ilp_unitary(genome_a, genome_b, output):
     gene_count = {g: max(gene_count_a[g], gene_count_b[g]) for g in
                   set(gene_count_a.keys()).union(set(gene_count_b.keys()))}
 
+    max_chromosomes = max(genome_a.n_chromosomes(), genome_b.n_chromosomes())
+    n_telomeres = 2 * max_chromosomes
+    y_label = define_y_label(gene_count, n_telomeres)
     # build constraints:
     constraints = []
     # consistency:
@@ -362,27 +462,12 @@ def dcj_dupindel_ilp_unitary(genome_a, genome_b, output):
 
     ######
     constraints.append("\\ Telomere matching:")  # special case, "0" gene.
-    max_chromosomes = max(genome_a.n_chromosomes(), genome_b.n_chromosomes())
-    n_telomeres = 2 * max_chromosomes
+
     for i in range(1, n_telomeres + 1):
         constraints.append(
             " + ".join([matching_edge_name(0, i, j, Ext.TAIL) for j in xrange(1, n_telomeres + 1)]) + " = 1")
 
     constraints.append("\\ Labelling")
-    # define the label -> integer 1..n
-    y_label = {}
-    idx = 1
-    for genome, genome_count in [("A", gene_count_a), ("B", gene_count_b)]:
-        # telomeres: (represented by TAIL always)
-        for i in range(1, n_telomeres + 1):
-            y_label[vertex_name(genome, 0, i, Ext.TAIL)] = idx
-            idx += 1
-        for gene, copies in gene_count.iteritems():
-            for i in xrange(1, genome_count[gene] + 1):
-                y_label[vertex_name(genome, gene, i, Ext.HEAD)] = idx
-                idx += 1
-                y_label[vertex_name(genome, gene, i, Ext.TAIL)] = idx
-                idx += 1
 
     # for each adjacency, fix label:
     constraints.append("\\ Adjacency have the same label:")
