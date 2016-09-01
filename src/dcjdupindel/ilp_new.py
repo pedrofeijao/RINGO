@@ -231,10 +231,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     # sorting just to make it nicer looking:
     for (gene, copy_a) in sorted(edges):
         copy_set_b = edges[(gene, copy_a)]
-        if len(copy_set_b) == 1:
-            constraints.extend(
-                ["%s = 1" % matching_edge_name(gene, copy_a, list(copy_set_b)[0], ext) for ext in [Ext.HEAD, Ext.TAIL]])
-        else:
+        if len(copy_set_b) > 1:
             for copy_b in copy_set_b:
                 constraints.append("%s - %s = 0" % (
                     matching_edge_name(gene, copy_a, copy_b, Ext.TAIL),
@@ -410,7 +407,8 @@ def solve_ilp(filename, timelimit=60):
 
     # not verbose:
     # model.setParam('OutputFlag', False)
-
+    # MIP focus, from 0 to 3:
+    model.params.MIPFocus = 1 # best solutions, less focus on bounds.
     model.optimize()
 
     if model.status != GRB.Status.INFEASIBLE:
