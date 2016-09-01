@@ -293,9 +293,11 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                 for copy_b in copy_set_b:
                     y_j = y_label[vertex_name("B", gene, copy_b, ext)]
                     constraints.append(
-                        "y_%s - y_%s + %s %s <= %d" % (y_i, y_j, y_i, matching_edge_name(gene, copy_a, copy_b, ext), y_i))
+                        "y_%s - y_%s + %s %s <= %d" % (
+                        y_i, y_j, y_i, matching_edge_name(gene, copy_a, copy_b, ext), y_i))
                     constraints.append(
-                        "y_%s - y_%s + %s %s <= %d" % (y_j, y_i, y_j, matching_edge_name(gene, copy_a, copy_b, ext), y_j))
+                        "y_%s - y_%s + %s %s <= %d" % (
+                        y_j, y_i, y_j, matching_edge_name(gene, copy_a, copy_b, ext), y_j))
 
     constraints.append("\\ Balancing edges with same label:")
     for genome, balancing in [("A", balancing_genes_A), ("B", balancing_genes_B)]:
@@ -319,19 +321,19 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     constraints.append("\\ Z variables")
     for vertex, i in sorted(y_label.items(), key=operator.itemgetter(1)):
         if vertex[0] == "A":
-            if i in z_fix and z_fix[i] == 0:
-                continue
-            if i in z_fix and z_fix[i] == 1:
-                constraints.append("z_%s = 1" % i)
-            else:
+            # if i in z_fix and z_fix[i] == 0:
+            #     continue
+            # if i in z_fix and z_fix[i] == 1:
+            #     constraints.append("z_%s = 1" % i)
+            if i not in z_fix:
                 constraints.append("%d z_%s - y_%s <= 0" % (i, i, i))
     #
     # # number of genes, to fix distance:
     constraints.append("n = %d" % (sum(total_gene_count.itervalues())))
+    # # number of fixed cycles
+    constraints.append("c = %d" % (sum(z_fix.itervalues())))
     # for g in sorted(total_gene_count):
     #     print g,total_gene_count[g]
-    print "0:", total_gene_count[0]
-    print "N:", (sum(total_gene_count.itervalues()))
 
     #
     # # bounds:
@@ -368,7 +370,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     #
     # z cycles:
     for vertex, i in sorted(y_label.items(), key=operator.itemgetter(1)):
-        if i in z_fix and z_fix[i] == 0:
+        if i in z_fix:  # and z_fix[i] == 0:
             continue
         if vertex[0] == "B":
             continue
@@ -381,11 +383,13 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
         if i not in y_fix:
             general.append("y_%d" % i)
     #
-    # # number of genes:
+    # # number of genes and fixed cycles:
     general.append("n")
+    general.append("c")
     # # objective function:
-    objective = ["obj: n - " + " - ".join(
-        ["z_%d" % i for vertex, i in sorted(y_label.items(), key=operator.itemgetter(1)) if vertex[0] != "B" and not (i in z_fix and z_fix[i] == 0)])]
+    objective = ["obj: n - c - " + " - ".join(
+        ["z_%d" % i for vertex, i in sorted(y_label.items(), key=operator.itemgetter(1)) if
+         vertex[0] == "A" and i not in z_fix])]
 
     # write:
     with open(output, "w") as f:
@@ -408,7 +412,7 @@ def solve_ilp(filename, timelimit=60):
     # not verbose:
     # model.setParam('OutputFlag', False)
     # MIP focus, from 0 to 3:
-    model.params.MIPFocus = 1 # best solutions, less focus on bounds.
+    model.params.MIPFocus = 1  # best solutions, less focus on bounds.
     model.optimize()
 
     if model.status != GRB.Status.INFEASIBLE:
