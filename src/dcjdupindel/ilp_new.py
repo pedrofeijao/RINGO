@@ -158,7 +158,6 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
 
         # check each connected component:
         for comp in connected_components(master_graph):
-            # TODO: remove vertices from cycles after processing;
             # get degree-1 vertices:
             degree_one = [v for v in comp if master_graph.degree(v) == 1]
 
@@ -179,16 +178,12 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                         pass
 
                 # if the path has homologous genes at the ends, I can join:
-                elif genome_i != genome_j and g_i == g_j: #and len(comp) == 4:
+                elif genome_i != genome_j and g_i == g_j:
                     # invert to put genome A always in variables _i :
                     if genome_j == "A":
                         genome_i, g_i, copy_a, e_i, genome_j, g_j, copy_b, e_j = genome_j, g_j, copy_b, e_j, genome_i, g_i, copy_a, e_i
-                    # check conflict, only follow if ok:
+                    # check conflict, only add edge if ok:
                     if copy_b in edges[(g_i, copy_a)]:
-                        # import ipdb; ipdb.set_trace()
-                        # add edge and declare this is as a cycle:
-                        # update: might bug; do not do it, leave it to the rescan after adding the edges;
-                        # degree_one = []
                         edges[(g_i, copy_a)] = {copy_b}
                         # save edges to add to graph:
                         for ext in [Ext.HEAD, Ext.TAIL]:
@@ -203,19 +198,15 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                             try:
                                 # if not there already, exception is thrown, that' ok
                                 edges[(g_i, idx)].remove(copy_b)
-                                # Add new edges if degree 1:
+                                # Add new edges to graph, if the removal created degree 1 vertices:
                                 if len(edges[(g_i, idx)]) == 1:
                                     idx_c = list(edges[(g_i, idx)])[0]
                                     for ext in [Ext.HEAD, Ext.TAIL]:
                                         edges_to_add.append((("A", g_i, idx, ext), ("B", g_i, idx_c, ext)))
-                                # new edges, re-scan:
-                                rescan = True
                             except KeyError:
                                 pass
-                        # break
-
             # if no degree one vertices, it is a cycle, I can fix the y_i:
-            if len(degree_one) == 0:
+            elif len(degree_one) == 0:
                 # get indexes of the y_i:
                 indexes = [(v, y_label[vertex_name(*v)]) for v in comp]
                 min_label = min([x[1] for x in indexes])
@@ -225,13 +216,12 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                 z_fix[min_label] = 1
                 vertices_to_remove.extend(comp)
 
-    print "EMPTY:", len([edges[x] for x in edges if len(edges[x]) == 0])
+    # DRAW?
     # nx.draw_circular(master_graph, font_size=8, width=0.5, node_shape="8", node_size=1, with_labels=True)
     # nx.draw_spring(master_graph, font_size=8, width=0.5, node_shape="8", node_size=20, with_labels=True)
     # nx.draw_spectral(master_graph, font_size=8, width=0.5, node_shape="8", node_size=20, with_labels=True)
     # nx.draw_graphviz(master_graph, font_size=8, width=0.5, node_shape="8", node_size=20, with_labels=True)
     # plt.savefig('graph.pdf', bbox_inches='tight')
-
 
     # all fixed, generate ILP:
     constraints = []
@@ -276,9 +266,6 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                                 (gene_i, copy_i, ext_i) != (gene_j, copy_j, ext_j)]) + " = 1")
     constraints.append("\ Labelling")
 
-    # fixed labels y_i:
-    for i, label in sorted(y_fix.items(), key=operator.itemgetter(1)):
-        constraints.append("y_%d = %d" % (i, label))
     #
     # for each adjacency, fix label:
     constraints.append("\\ Adjacency have the same label:")
@@ -353,7 +340,8 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     # # bounds:
     bounds = []
     for i in sorted(y_label.itervalues()):
-        bounds.append("y_%d <= %d" % (i, i))
+        if i not in y_fix:
+            bounds.append("y_%d <= %d" % (i, i))
     #
     # # variables:
     binary = []
@@ -393,7 +381,8 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     # TODO: remove unused y' and z's from model. If y=1, it can be removed, just set z=1.
     general = []
     for vertex, i in sorted(y_label.items(), key=operator.itemgetter(1)):
-        general.append("y_%d" % i)
+        if i not in y_fix:
+            general.append("y_%d" % i)
     #
     # # number of genes:
     general.append("n")
@@ -420,7 +409,7 @@ def solve_ilp(filename, timelimit=60):
     model.params.timeLimit = timelimit
 
     # not verbose:
-    model.setParam('OutputFlag', False)
+    # model.setParam('OutputFlag', False)
 
     model.optimize()
 
