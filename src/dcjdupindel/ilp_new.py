@@ -148,10 +148,13 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     # Search components to fix:
     rescan = True
     edges_to_add = []
+    vertices_to_remove = []
     while rescan:
         rescan = False
-        for i, j in edges_to_add:
-            master_graph.add_edge(i, j)
+        master_graph.add_edges_from(edges_to_add)
+        master_graph.remove_nodes_from(vertices_to_remove)
+        edges_to_add = []
+        vertices_to_remove = []
 
         # check each connected component:
         for comp in connected_components(master_graph):
@@ -176,7 +179,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                         pass
 
                 # if the path has homologous genes at the ends, I can join:
-                elif genome_i != genome_j and g_i == g_j:  # and len(comp) == 4:
+                elif genome_i != genome_j and g_i == g_j: #and len(comp) == 4:
                     # invert to put genome A always in variables _i :
                     if genome_j == "A":
                         genome_i, g_i, copy_a, e_i, genome_j, g_j, copy_b, e_j = genome_j, g_j, copy_b, e_j, genome_i, g_i, copy_a, e_i
@@ -184,7 +187,8 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                     if copy_b in edges[(g_i, copy_a)]:
                         # import ipdb; ipdb.set_trace()
                         # add edge and declare this is as a cycle:
-                        degree_one = []
+                        # update: might bug; do not do it, leave it to the rescan after adding the edges;
+                        # degree_one = []
                         edges[(g_i, copy_a)] = {copy_b}
                         # save edges to add to graph:
                         for ext in [Ext.HEAD, Ext.TAIL]:
@@ -219,6 +223,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                     y_fix[label] = min_label
                     z_fix[label] = 0
                 z_fix[min_label] = 1
+                vertices_to_remove.extend(comp)
 
     print "EMPTY:", len([edges[x] for x in edges if len(edges[x]) == 0])
     # nx.draw_circular(master_graph, font_size=8, width=0.5, node_shape="8", node_size=1, with_labels=True)
@@ -414,12 +419,32 @@ def solve_ilp(filename, timelimit=60):
     # time limit in seconds:
     model.params.timeLimit = timelimit
 
+    # not verbose:
+    model.setParam('OutputFlag', False)
+
     model.optimize()
 
     if model.status != GRB.Status.INFEASIBLE:
         print('FINISHED: Best objective: %g' % model.objVal)
         print('Optimization ended with status %d' % model.status)
         model.write(filename + '.sol')
+
+    if model.status == GRB.INFEASIBLE:
+        model.computeIIS()
+        model.write("unfeasible.lp")
+        print('\nThe following constraint(s) cannot be satisfied:')
+        for c in model.getConstrs():
+            if c.IISConstr:
+                print('%s' % c.constrName)
+    else:
+        z = 0
+        n = 0
+        for v in model.getVars():
+            if v.varName == "n":
+                n = v.x
+            if v.varName.startswith("z") and v.x == 1:
+                z += 1
+        print "N: %d  cycles:%d" % (n, z)
 
     return model
 
@@ -439,11 +464,3 @@ if __name__ == '__main__':
 
     if param.solve:
         model = solve_ilp(filename)
-        z = 0
-        n = 0
-        for v in model.getVars():
-            if v.varName == "n":
-                n = v.x
-            if v.varName.startswith("z") and v.x == 1:
-                z += 1
-        print "N: %d  cycles:%d" % (n,z)
