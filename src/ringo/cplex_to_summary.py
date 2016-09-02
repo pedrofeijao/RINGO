@@ -1,4 +1,5 @@
 #!/usr/bin/env python2
+import pyximport;pyximport.install()
 import argparse
 import re
 import networkx as nx
@@ -63,7 +64,7 @@ if __name__ == '__main__':
         description="Creates a summary file from a list of CPLEX solution files to the DCJdupindel ILP.")
     parser.add_argument("files", type=str, nargs="+", help="Solution file(s).")
     param = parser.parse_args()
-    print "\t".join(["File", "Dist", "Rearr", "Indels", "Time", "Gap"])
+    print "\t".join(["File", "total", "rearrangement", "indel", "time", "gap"])
     for sol_file in param.files:
         r = parse_ilp_sol(sol_file)
         title = sol_file.replace(".lp.sol", "").replace("genomes.txt_", "")
