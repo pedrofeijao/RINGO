@@ -90,3 +90,7 @@ class RingoConfig(object):
 
     def mgra_output_folder(self):
         return self.config.get("Filenames", "mgra_output_folder")
+
+    # DCJ dup:
+    def dup_genome_file_extension(self):
+        return self.config.get("Filenames", "dup_genome_file_extension")

@@ -28,6 +28,15 @@ class RandomWalk:
         self.genomes = []
         self.events = {event: [] for event in RandomWalk.number_of_events}
 
+    @staticmethod
+    def open_folder(folder):
+
+        sim_parameters = SimParameters()
+        # Reading data back
+        sim_parameters.__dict__ = file_ops.read_simulation_parameters(folder)
+        # todo: save randomwalk parameters somewhere
+        return RandomWalk(folder, 0, 0, sim_parameters)
+
     def do_the_walk(self):
         sim_param = self.sim_parameters
 
@@ -37,10 +46,16 @@ class RandomWalk:
         # start genome:
         current_genome = Genome.identity(sim_param.num_genes, sim_param.num_chr, name="G_0")
 
+        # add copy number information to track orthologous/paralogous, when duplications are present:
+        # if sim_param.pre_duplications > 0 or sim_param.duplication_p > 0:
+        for chromosome in current_genome.chromosomes:
+            chromosome.copy_number = [1] * len(chromosome.gene_order)
+        current_copy_number = current_genome.gene_count()
+
         # do some pre-dups if necessary:
         if sim_param.pre_duplications > 0:
             for i in range(sim_param.pre_duplications):
-                Simulation.apply_random_segmental_duplication(current_genome, range(1, param.duplication_length+1))
+                Simulation.apply_random_segmental_duplication(current_genome, range(1, param.duplication_length+1), current_copy_number)
 
         self.genomes.append(current_genome)
 
@@ -52,7 +67,7 @@ class RandomWalk:
             # apply random event on current;
             current_genome = current_genome.clone("G_%d" % (step+1))
             n_rearrangements, n_insertions, n_deletions, n_duplications, current_insertion_gene = \
-                Simulation.apply_random_events(sim_param, current_genome, self.steps, current_insertion_gene)
+                Simulation.apply_random_events(sim_param, current_genome, self.steps, current_insertion_gene, current_copy_number)
             for key, value in zip(RandomWalk.number_of_events,
                                   [self.steps, n_rearrangements, n_insertions, n_deletions, n_duplications]):
                 self.events[key].append(value)
@@ -66,13 +81,14 @@ class RandomWalk:
 
         # save genomes:
         file_ops.write_genomes_to_file(self.genomes, os.path.join(output, "genomes.txt"))
+        file_ops.write_genomes_copy_number_to_file(self.genomes, os.path.join(output, "genomes_copy_number.txt"))
 
         # save in COSER format:
         file_ops.write_genomes_coser_format(self.genomes, output)
 
         # save distances:
         with open(os.path.join(output, "distances.txt"), "w") as f:
-            f.write("%s\n" % ("\t".join(RandomWalk.number_of_events)))
+            f.write("Genome\t%s\n" % ("\t".join(RandomWalk.number_of_events)))
             for idx, g in enumerate(self.genomes):
                 f.write("%s\t%s\n" % (
                 g.name, "\t".join([str(sum(self.events[k][:(idx + 1)])) for k in RandomWalk.number_of_events])))

@@ -106,6 +106,7 @@ def open_genome_file(filename, as_list=False):
                 else:
                     raise RuntimeError("Invalid genome file %s. Unrecognized line:\n%s" % (filename, line))
                 genome.add_chromosome(Chromosome(map(int, line[:-1].strip().split(" ")), circular))
+
     return genomes
 
 
@@ -134,7 +135,7 @@ def open_adjacencies_file(filename):
 
 def write_genomes_to_file(genomes, filename, write_chr_line=True):
     """
-    Write genomes in a file with GRIMM format
+    Write genomes in a file with GRIMM format.
     """
     if isinstance(genomes, dict):
         iterator = genomes.itervalues()
@@ -146,8 +147,25 @@ def write_genomes_to_file(genomes, filename, write_chr_line=True):
             for idx, chromosome in enumerate(genome.chromosomes):
                 if write_chr_line:
                     f.write("# chr%d\n" % (idx + 1))
-                f.write("%s %s\n" % (" ".join([str(x) for x in chromosome.gene_order]),
+                f.write("%s %s\n" % (" ".join([str(gene) for gene in chromosome.gene_order]),
                                      CIRCULAR_END_CHR if chromosome.circular else LINEAR_END_CHR))
+
+
+def write_genomes_copy_number_to_file(genomes, filename):
+    """
+    Write genomes in a file with GRIMM format.
+    """
+    if isinstance(genomes, dict):
+        iterator = genomes.itervalues()
+    elif isinstance(genomes, list):
+        iterator = iter(genomes)
+    with open(filename, "w") as f:
+        for genome in iterator:
+            f.write(">%s\n" % genome.name)
+            for idx, chromosome in enumerate(genome.chromosomes):
+                f.write("%s %s\n" % (" ".join([str(gene) for gene in chromosome.copy_number]),
+                                     CIRCULAR_END_CHR if chromosome.circular else LINEAR_END_CHR))
+
 
 
 def write_genomes_coser_format(genomes, folder):
@@ -161,12 +179,10 @@ def write_genomes_coser_format(genomes, folder):
 
     for genome in iterator:
         with open(os.path.join(folder, "%s.coser" % genome.name), "w") as f:
-            idx = 1
             for chr_id, chrom in enumerate(genome.chromosomes):
                 circular = 2 if chrom.circular else 1
-                for gene in chrom.gene_order:
-                    f.write("g%s\t%d\tchr%d\t%d\n" % (idx, gene, chr_id+1, circular))
-                    idx += 1
+                for gene, copy in zip(chrom.gene_order, chrom.copy_number):
+                    f.write("%s_%s\t%d\tchr%d\t%d\n" % (abs(gene), copy, gene, chr_id+1, circular))
 
 def open_newick_tree(filename, label_internal_nodes=True):
     """

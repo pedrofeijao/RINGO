@@ -106,7 +106,7 @@ class Simulation:
         chromosome.gene_order[bp:bp] = chromosome.gene_order[bp:bp + length]
 
     @staticmethod
-    def apply_random_segmental_duplication(genome, duplication_length_range):
+    def apply_random_segmental_duplication(genome, duplication_length_range, current_copy_number):
         chromosome = np.random.choice(genome.chromosomes)
         bp = np.random.choice(chromosome.length())
         length = np.random.choice(duplication_length_range)
@@ -114,7 +114,13 @@ class Simulation:
             length = chromosome.length() - bp
         # position:
         position = np.random.choice(range(bp) + range(bp+length, chromosome.length()))
-        chromosome.gene_order[position:position] = chromosome.gene_order[bp:bp + length]
+        block = chromosome.gene_order[bp:bp + length]
+        # update gene copy number
+        for gene in block:
+            current_copy_number[abs(gene)] += 1
+        # apply dup:
+        chromosome.copy_number[position:position] = [current_copy_number[abs(x)] for x in block]
+        chromosome.gene_order[position:position] = block
 
     @staticmethod
     def apply_random_deletion(genome, deletion_length_range):
@@ -129,16 +135,21 @@ class Simulation:
             genome.chromosomes.remove(chromosome)
 
     @staticmethod
-    def apply_random_insertion(genome, gene, insertion_length_range):
+    def apply_random_insertion(genome, gene, insertion_length_range, current_copy_number):
         chromosome = np.random.choice(genome.chromosomes)
         bp = np.random.choice(chromosome.length())
         length = np.random.choice(insertion_length_range)
-        chromosome.gene_order[bp:bp] = range(gene, gene + length)
+        block = range(gene, gene + length)
+        chromosome.gene_order[bp:bp] = block
+        if chromosome.copy_number is not None:
+            for gene in block:
+                current_copy_number[abs(gene)] = 1
+            chromosome.copy_number[bp:bp] = [1] * length
         return gene + length
 
 
     @staticmethod
-    def apply_random_events(param, genome, n, current_insertion_gene):
+    def apply_random_events(param, genome, n, current_insertion_gene, current_copy_number=None):
         rearrangement_count = 0
         insertion_count = 0
         deletion_count = 0
@@ -172,11 +183,11 @@ class Simulation:
                 Simulation.apply_random_deletion(genome, deletion_length_range)
                 deletion_count += 1
             elif event == EventType.INSERTION:
-                current_insertion_gene = Simulation.apply_random_insertion(genome, current_insertion_gene, insertion_length_range)
+                current_insertion_gene = Simulation.apply_random_insertion(genome, current_insertion_gene, insertion_length_range, current_copy_number)
                 insertion_count += 1
             elif event == EventType.DUPLICATION:
                 # Simulation.apply_random_tandem_duplication(genome, duplication_length_range)
-                Simulation.apply_random_segmental_duplication(genome, duplication_length_range)
+                Simulation.apply_random_segmental_duplication(genome, duplication_length_range, current_copy_number)
                 duplication_count += 1
 
             else:

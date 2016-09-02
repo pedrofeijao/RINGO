@@ -1,3 +1,6 @@
+import copy
+from collections import Counter
+
 __author__ = 'pfeijao'
 
 
@@ -14,6 +17,12 @@ class Genome:
                 self.chromosomes.append(Chromosome(list(gene_order), circular=True))
             else:
                 self.chromosomes.append(Chromosome(gene_order, circular=False))
+
+    def n_chromosomes(self):
+        return len(self.chromosomes)
+
+    def gene_count(self):
+        return Counter([abs(x) for chromosome in self.chromosomes for x in chromosome.gene_order])
 
     @staticmethod
     #TODO: Check if this is efficient, it uses the "merge" that is not linear?
@@ -68,10 +77,11 @@ class Genome:
         return Genome(name=name, chr_list=chr_list)
 
     @staticmethod
-    def identity(num_genes, num_chromosomes, name="Identity"):
+    def identity(num_genes, num_chromosomes, name="Identity", circular=False):
         genes_per_chr = num_genes / num_chromosomes
-        return Genome(name,
-                      [range(c * genes_per_chr + 1, (c + 1) * genes_per_chr + 1) for c in range(num_chromosomes)])
+        return Genome(name, [Chromosome(range(c * genes_per_chr + 1, (c + 1) * genes_per_chr + 1), circular=circular)
+                      for c in range(num_chromosomes)])
+
 
     def add_chromosome(self, chromosome):
         self.chromosomes.append(chromosome)
@@ -83,6 +93,7 @@ class Genome:
         return set.union(*[chromosome.adjacency_set() for chromosome in self.chromosomes])
 
     def clone(self, name=None):
+        # return copy.deepcopy(self)
         g = Genome(name=name if name is not None else self.name)
         for chromosome in self.chromosomes:
             g.add_chromosome(chromosome.clone())
@@ -96,9 +107,10 @@ class Genome:
 
 
 class Chromosome:
-    def __init__(self, gene_order, circular=False):
+    def __init__(self, gene_order, circular=False, copy_number=None):
         self.circular = circular
         self.gene_order = gene_order
+        self.copy_number = copy_number  # only used in simulations if needed for duplications.
 
     def __iter__(self):
         return self.gene_order.__iter__()
@@ -125,7 +137,13 @@ class Chromosome:
         return s
 
     def clone(self):
-        return Chromosome(list(self.gene_order), self.circular)
+        return Chromosome(list(self.gene_order), self.circular, copy_number=self.copy_number)
+
+
+class Ext:
+    HEAD = 'h'
+    TAIL = 't'
+
 
 # Breakpoint graph Classes.
 class CType:
