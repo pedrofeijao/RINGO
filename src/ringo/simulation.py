@@ -109,7 +109,9 @@ class Simulation:
     def apply_random_segmental_duplication(genome, duplication_length_range, current_copy_number):
         chromosome = np.random.choice(genome.chromosomes)
         bp = np.random.choice(chromosome.length())
-        length = np.random.choice(duplication_length_range)
+        # length = np.random.choice(duplication_length_range)
+        # update to match COSER sims; lenght is fixed at max;
+        length = max(duplication_length_range)
         if bp + length > chromosome.length():
             length = chromosome.length() - bp
         # position:
