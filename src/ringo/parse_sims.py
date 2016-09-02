@@ -293,8 +293,10 @@ def parse_sims(folders, algorithm_list, parameters, sim_group, calc_dcj_distance
         # set tree distances:
         algorithms.set_all_tree_distances(sim.sim_tree)
         # define simulation parameter label:
-        sim.sim_parameters.__dict__["folder"] = folder
-        sim.sim_parameters.__dict__["idx"] = idx
+        sim.sim_parameters.folder = folder
+        sim.sim_parameters.idx = idx
+        # indel perc
+        sim.sim_parameters.indel_p = sim.sim_parameters.insertion_p + sim.sim_parameters.deletion_p
         sim_label = sim_group % sim.sim_parameters.__dict__
 
         try:
@@ -344,7 +346,7 @@ if __name__ == '__main__':
     folders = sorted(param.folders)
     algs = [t.split(",")[0] for t in algorithm_list]
     parameters = ["tp", "fn", "fp"]
-    sim_group = "(%(scale).1f,%(indel_perc).1f)"
+    sim_group = "(%(scale).1f,%(indel_p).1f)"
     # sim_group = "%(scale).1f"
     # sim_group = "All"
     # sim_group = "%(folder)s"
