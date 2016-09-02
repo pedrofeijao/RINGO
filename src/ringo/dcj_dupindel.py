@@ -443,16 +443,23 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Generates and optionally solve an ILP for the DCJ duplication and indel distance.")
     parser.add_argument("-s", "--solve", action="store_true", default=False, help="Solve the model with Gurobi.")
-    parser.add_argument("file", type=str, help="Genomes file.")
-    parser.add_argument("g1", type=int, help="Index of genome 1 in the file. (0-indexed).")
-    parser.add_argument("g2", type=int, help="Index of genome 1 in the file. (0-indexed).")
+    input_type = parser.add_mutually_exclusive_group(required=True)
+    input_type.add_argument("-g", type=str, nargs=3, help="Genomes file, idx 1 and 2 of genomes (0-indexed).")
+    # parser.add_argument("g1", type=int, help="Index of genome 1 in the file. (0-indexed).")
+    # parser.add_argument("g2", type=int, help="Index of genome 1 in the file. (0-indexed).")
+    input_type.add_argument("-c", type=str, nargs=2, help="Two coser files.")
+
     param = parser.parse_args()
-
-    genomes = file_ops.open_genome_file(param.file, as_list=True)
-    g1 = genomes[param.g1]
-    g2 = genomes[param.g2]
-
-    filename = "%s_%s_%s.lp" % (os.path.basename(param.file), g1.name,  g2.name)
+    if param.g is not None:
+        filename, n1, n2 = param.g
+        genomes = file_ops.open_genome_file(filename, as_list=True)
+        g1 = genomes[int(n1)]
+        g2 = genomes[int(n2)]
+    elif param.c is not None:
+        g1 = file_ops.open_coser_genome(param.c[0])
+        g2 = file_ops.open_coser_genome(param.c[1])
+        filename = "ilp_"
+    filename = "%s_%s_%s.lp" % (filename, g1.name,  g2.name)
     dcj_dupindel_ilp(g1, g2, filename)
 
     if param.solve:

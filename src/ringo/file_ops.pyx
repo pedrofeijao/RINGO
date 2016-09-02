@@ -167,6 +167,21 @@ def write_genomes_copy_number_to_file(genomes, filename):
                                      CIRCULAR_END_CHR if chromosome.circular else LINEAR_END_CHR))
 
 
+def open_coser_genome(file, name=None):
+    chromosomes = {}
+    if name is None:
+        name = os.path.basename(os.path.splitext(file)[0])
+    genome = Genome(name)
+    with open(file) as f:
+        for l in f:
+            g_id, gene, chrom, circular = l.strip().split()
+            if chrom not in chromosomes:
+                chromosomes[chrom] = Chromosome([], circular=True if circular == 2 else False)
+                genome.add_chromosome(chromosomes[chrom])
+            chromosomes[chrom].gene_order.append(int(gene))
+    return genome
+
+
 
 def write_genomes_coser_format(genomes, folder):
     """
