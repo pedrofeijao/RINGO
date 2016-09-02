@@ -1,14 +1,11 @@
 #!/usr/bin/env python2
 import collections
 
-import math
 from dendropy import Tree, Taxon
 from model import CType, BPGraph, Genome, Chromosome
 import sys
 import networkx as nx
 import mwmatching
-import dcj
-import file_ops
 import blossom5_perfect_matching
 import dcj
 import numpy as np
