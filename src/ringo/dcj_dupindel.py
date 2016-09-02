@@ -166,7 +166,6 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                     if genome_i == genome_j:  # AA- or BB-path, close it
                         balancing_fix[genome_i][degree_one[0][1:]] = degree_one[1][1:]
                         balancing_fix[genome_i][degree_one[1][1:]] = degree_one[0][1:]
-                        degree_one = []
                     else:
                         # TODO: deal with AB-components;
                         pass
@@ -225,7 +224,9 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     # sorting just to make it nicer looking:
     for (gene, copy_a) in sorted(edges):
         copy_set_b = edges[(gene, copy_a)]
-        if len(copy_set_b) > 1:
+        if len(copy_set_b) == 1:
+            constraints.append("%s = 1" % matching_edge_name(gene, copy_a, copy_b, Ext.HEAD))
+        else:
             for copy_b in copy_set_b:
                 constraints.append("%s - %s = 0" % (
                     matching_edge_name(gene, copy_a, copy_b, Ext.TAIL),
@@ -344,7 +345,11 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     matching = ["\ match"]
     # for vertex, i in sorted(y_label.items(), key=operator.itemgetter(1)):
     for (gene, copy_a), copy_set_b in sorted(edges.items(), key=operator.itemgetter(0)):
-        if len(copy_set_b) > 1:
+        # fixed vars, just the head, to know the fixed value when parsing;
+        if len(copy_set_b) == 1:
+            matching.append(matching_edge_name(gene, copy_a, copy_b, Ext.HEAD))
+        # non fixed, both head and tail;
+        else:
             for copy_b in copy_set_b:
                 for ext in [Ext.HEAD, Ext.TAIL]:
                     matching.append(matching_edge_name(gene, copy_a, copy_b, ext))
@@ -441,7 +446,6 @@ if __name__ == '__main__':
     parser.add_argument("file", type=str, help="Genomes file.")
     parser.add_argument("g1", type=int, help="Index of genome 1 in the file. (0-indexed).")
     parser.add_argument("g2", type=int, help="Index of genome 1 in the file. (0-indexed).")
-    parser.add_argument("-cn", "--copy_number", action="store_true", default=False, help="Genome file has copy number information.")
     param = parser.parse_args()
 
     genomes = file_ops.open_genome_file(param.file, as_list=True)
