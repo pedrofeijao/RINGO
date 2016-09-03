@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
-import pyximport;pyximport.install()
+import pyximport;
+
+pyximport.install()
 from model import Ext, Chromosome
 import argparse
 import copy
@@ -88,7 +90,7 @@ def balancing_extremities(balancing, exclude=None):
 # MAIN function
 ######################################################################
 
-def dcj_dupindel_ilp(genome_a, genome_b, output):
+def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False):
     # copy genomes to possibly make some changes:
     genome_a = copy.deepcopy(genome_a)
     genome_b = copy.deepcopy(genome_b)
@@ -225,7 +227,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     for (gene, copy_a) in sorted(edges):
         copy_set_b = edges[(gene, copy_a)]
         if len(copy_set_b) == 1:
-            constraints.append("%s = 1" % matching_edge_name(gene, copy_a, copy_b, Ext.HEAD))
+            constraints.append("%s = 1" % matching_edge_name(gene, copy_a, list(copy_set_b)[0], Ext.HEAD))
         else:
             for copy_b in copy_set_b:
                 constraints.append("%s - %s = 0" % (
@@ -234,28 +236,32 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
             constraints.append(
                 " + ".join([matching_edge_name(gene, copy_a, copy_b, Ext.TAIL) for copy_b in copy_set_b]) + " = 1")
 
-    constraints.append("\ Balancing:")
-    balancing_genes_A = {g: range(gene_count["A"][g] + 1, gene_count["B"][g] + 1) for g in total_gene_count.iterkeys()
-                         if gene_count["A"][g] < gene_count["B"][g]}
-    balancing_genes_B = {g: range(gene_count["B"][g] + 1, gene_count["A"][g] + 1) for g in total_gene_count.iterkeys()
-                         if gene_count["B"][g] < gene_count["A"][g]}
+    balancing_genes = {
+        "A": {g: range(gene_count["A"][g] + 1, gene_count["B"][g] + 1) for g in total_gene_count.iterkeys()
+              if gene_count["A"][g] < gene_count["B"][g]},
+        "B": {g: range(gene_count["B"][g] + 1, gene_count["A"][g] + 1) for g in total_gene_count.iterkeys()
+              if gene_count["B"][g] < gene_count["A"][g]}}
 
-    for genome, balancing in [("A", balancing_genes_A), ("B", balancing_genes_B)]:
-        constraints.append("\ Genome %s" % genome)
-        for gene_i, copy_i, ext_i in balancing_extremities(balancing):
-            # check if fixed:
-            if (gene_i, copy_i, ext_i) in balancing_fix[genome]:
-                gene_j, copy_j, ext_j = balancing_fix[genome][(gene_i, copy_i, ext_i)]
-                if (gene_i, copy_i, ext_i) < (gene_j, copy_j, ext_j):
+    if not skip_balancing:
+        constraints.append("\ Balancing:")
+
+        for genome in ["A", "B"]:
+            constraints.append("\ Genome %s" % genome)
+            for gene_i, copy_i, ext_i in balancing_extremities(balancing_genes[genome]):
+                # check if fixed:
+                if (gene_i, copy_i, ext_i) in balancing_fix[genome]:
+                    gene_j, copy_j, ext_j = balancing_fix[genome][(gene_i, copy_i, ext_i)]
+                    if (gene_i, copy_i, ext_i) < (gene_j, copy_j, ext_j):
+                        constraints.append(
+                            "%s = 1" % balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j))
+                # if not, matching 1-to-1:
+                else:
                     constraints.append(
-                        "%s = 1" % balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j))
-            # if not, matching 1-to-1:
-            else:
-                constraints.append(
-                    " + ".join([balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j) for
-                                gene_j, copy_j, ext_j in
-                                balancing_extremities(balancing, exclude=balancing_fix[genome].keys()) if
-                                (gene_i, copy_i, ext_i) != (gene_j, copy_j, ext_j)]) + " = 1")
+                        " + ".join([balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j) for
+                                    gene_j, copy_j, ext_j in
+                                    balancing_extremities(balancing_genes[genome], exclude=balancing_fix[genome].keys()) if
+                                    (gene_i, copy_i, ext_i) != (gene_j, copy_j, ext_j)]) + " = 1")
+
     constraints.append("\ Labelling")
 
     #
@@ -289,27 +295,28 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                     y_j = y_label[vertex_name("B", gene, copy_b, ext)]
                     constraints.append(
                         "y_%s - y_%s + %s %s <= %d" % (
-                        y_i, y_j, y_i, matching_edge_name(gene, copy_a, copy_b, ext), y_i))
+                            y_i, y_j, y_i, matching_edge_name(gene, copy_a, copy_b, ext), y_i))
                     constraints.append(
                         "y_%s - y_%s + %s %s <= %d" % (
-                        y_j, y_i, y_j, matching_edge_name(gene, copy_a, copy_b, ext), y_j))
+                            y_j, y_i, y_j, matching_edge_name(gene, copy_a, copy_b, ext), y_j))
 
-    constraints.append("\\ Balancing edges with same label:")
-    for genome, balancing in [("A", balancing_genes_A), ("B", balancing_genes_B)]:
-        constraints.append("\\ Genome %s" % genome)
-        for gene_i, copy_i, ext_i in balancing_extremities(balancing, exclude=balancing_fix[genome].keys()):
-            for gene_j, copy_j, ext_j in balancing_extremities(balancing, exclude=balancing_fix[genome].keys()):
-                if (gene_i, copy_i, ext_i) >= (gene_j, copy_j, ext_j):
-                    continue
-                y_i = y_label[vertex_name(genome, gene_i, copy_i, ext_i)]
-                y_j = y_label[vertex_name(genome, gene_j, copy_j, ext_j)]
-                # should not have someone here if I'm excluding fixed edges:
-                if y_i in y_fix and y_j in y_fix:
-                    continue
-                constraints.append("y_%s - y_%s + %s %s <= %d" % (
-                    y_i, y_j, y_i, balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j), y_i))
-                constraints.append("y_%s - y_%s + %s %s <= %d" % (
-                    y_j, y_i, y_j, balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j), y_j))
+    if not skip_balancing:
+        constraints.append("\\ Balancing edges with same label:")
+        for genome in ["A", "B"]:
+            constraints.append("\\ Genome %s" % genome)
+            for gene_i, copy_i, ext_i in balancing_extremities(balancing_genes[genome], exclude=balancing_fix[genome].keys()):
+                for gene_j, copy_j, ext_j in balancing_extremities(balancing_genes[genome], exclude=balancing_fix[genome].keys()):
+                    if (gene_i, copy_i, ext_i) >= (gene_j, copy_j, ext_j):
+                        continue
+                    y_i = y_label[vertex_name(genome, gene_i, copy_i, ext_i)]
+                    y_j = y_label[vertex_name(genome, gene_j, copy_j, ext_j)]
+                    # should not have someone here if I'm excluding fixed edges:
+                    if y_i in y_fix and y_j in y_fix:
+                        continue
+                    constraints.append("y_%s - y_%s + %s %s <= %d" % (
+                        y_i, y_j, y_i, balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j), y_i))
+                    constraints.append("y_%s - y_%s + %s %s <= %d" % (
+                        y_j, y_i, y_j, balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j), y_j))
 
     # z variables: since all cycles have to contains vertices from both genomes, we only add z variables
     # for genome A, that have smallest labels, so a genome B z variable will never be =1.
@@ -347,7 +354,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     for (gene, copy_a), copy_set_b in sorted(edges.items(), key=operator.itemgetter(0)):
         # fixed vars, just the head, to know the fixed value when parsing;
         if len(copy_set_b) == 1:
-            matching.append(matching_edge_name(gene, copy_a, copy_b, Ext.HEAD))
+            matching.append(matching_edge_name(gene, copy_a, list(copy_set_b)[0], Ext.HEAD))
         # non fixed, both head and tail;
         else:
             for copy_b in copy_set_b:
@@ -358,14 +365,17 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
     # print "Potentially %d matching edges" % sum([2*x ** 2 for x in gene_count.itervalues()])
     binary.extend(matching)
     #
-    # balancing edges:
-    balancing_edges = [balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j) for genome, balancing
-                       in [("A", balancing_genes_A), ("B", balancing_genes_B)] for gene_i, copy_i, ext_i in
-                       balancing_extremities(balancing, exclude=balancing_fix[genome].keys()) for gene_j, copy_j, ext_j
-                       in balancing_extremities(balancing, exclude=balancing_fix[genome].keys()) if
-                       (gene_i, copy_i, ext_i) < (gene_j, copy_j, ext_j)]
-    print "%d balancing edges" % len(balancing_edges)
-    binary.extend(balancing_edges)
+    if not skip_balancing:
+        # balancing edges:
+        balancing_edges = [balancing_edge_name(genome, gene_i, copy_i, ext_i, gene_j, copy_j, ext_j) for
+                           genome
+                           in ["A", "B"] for gene_i, copy_i, ext_i in
+                           balancing_extremities(balancing_genes[genome], exclude=balancing_fix[genome].keys()) for
+                           gene_j, copy_j, ext_j
+                           in balancing_extremities(balancing_genes[genome], exclude=balancing_fix[genome].keys()) if
+                           (gene_i, copy_i, ext_i) < (gene_j, copy_j, ext_j)]
+        print "%d balancing edges" % len(balancing_edges)
+        binary.extend(balancing_edges)
     #
     # z cycles:
     for vertex, i in sorted(y_label.items(), key=operator.itemgetter(1)):
@@ -443,6 +453,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Generates and optionally solve an ILP for the DCJ duplication and indel distance.")
     parser.add_argument("-s", "--solve", action="store_true", default=False, help="Solve the model with Gurobi.")
+    parser.add_argument("-sb", "--skip_balancing", action="store_true", default=False,
+                        help="Do not add balancing edges.")
     input_type = parser.add_mutually_exclusive_group(required=True)
     input_type.add_argument("-g", type=str, nargs=3, help="Genomes file, idx 1 and 2 of genomes (0-indexed).")
     # parser.add_argument("g1", type=int, help="Index of genome 1 in the file. (0-indexed).")
@@ -458,9 +470,9 @@ if __name__ == '__main__':
     elif param.c is not None:
         g1 = file_ops.open_coser_genome(param.c[0])
         g2 = file_ops.open_coser_genome(param.c[1])
-        filename = "ilp_"
-    filename = "%s_%s_%s.lp" % (filename, g1.name,  g2.name)
-    dcj_dupindel_ilp(g1, g2, filename)
+        filename = "ilp"
+    filename = "%s_%s_%s.lp" % (filename, g1.name, g2.name)
+    dcj_dupindel_ilp(g1, g2, filename, skip_balancing=param.skip_balancing)
 
     if param.solve:
         model = solve_ilp(filename)
