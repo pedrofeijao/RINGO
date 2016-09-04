@@ -181,9 +181,6 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                         # check conflict, only add edge if ok:
                         if copy_b in edges[(g_i, copy_a)]:
                             edges[(g_i, copy_a)] = {copy_b}
-                            print "CYCLE:", comp
-                            print "FIXED:", g_i, copy_a, copy_b
-                            print
                             # save edges to add to graph:
                             for ext in [Ext.HEAD, Ext.TAIL]:
                                 edges_to_add.append((("A", g_i, copy_a, ext), ("B", g_i, copy_b, ext)))
