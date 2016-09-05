@@ -137,7 +137,7 @@ class Chromosome:
         return s
 
     def clone(self):
-        return Chromosome(list(self.gene_order), self.circular, copy_number=self.copy_number)
+        return Chromosome(list(self.gene_order), self.circular, copy_number=list(self.copy_number))
 
 
 class Ext:

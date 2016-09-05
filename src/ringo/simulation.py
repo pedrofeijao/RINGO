@@ -81,12 +81,16 @@ class Simulation:
         chromosome = np.random.choice(genome.chromosomes)
         bp = sorted(np.random.choice(len(chromosome.gene_order)+1, 2))
         chromosome.gene_order[bp[0]:bp[1]] = reversed([-x for x in chromosome.gene_order[bp[0]:bp[1]]])
+        if chromosome.copy_number is not None:
+            chromosome.copy_number[bp[0]:bp[1]] = reversed(chromosome.copy_number[bp[0]:bp[1]])
 
     @staticmethod
     def apply_random_transposition(genome):
         chromosome = np.random.choice(genome.chromosomes)
         bp = sorted(np.random.choice(len(chromosome.gene_order)+1, 3))
         chromosome.gene_order[bp[0]:bp[2]] = chromosome.gene_order[bp[1]:bp[2]] + chromosome.gene_order[bp[0]:bp[1]]
+        if chromosome.copy_number is not None:
+            chromosome.copy_number[bp[0]:bp[2]] = chromosome.copy_number[bp[1]:bp[2]] + chromosome.copy_number[bp[0]:bp[1]]
 
     @staticmethod
     def apply_random_translocation(genome):
@@ -95,6 +99,9 @@ class Simulation:
         bp2 = np.random.choice(len(chromosomes[1].gene_order))
         chromosomes[0].gene_order[bp1:], chromosomes[1].gene_order[bp2:] = \
             chromosomes[1].gene_order[bp2:], chromosomes[0].gene_order[bp1:]
+        if chromosomes[0].copy_number is not None and chromosomes[1].copy_number is not None:
+            chromosomes[0].copy_number[bp1:], chromosomes[1].copy_number[bp2:] = \
+                chromosomes[1].copy_number[bp2:], chromosomes[0].copy_number[bp1:]
 
     @staticmethod
     def apply_random_tandem_duplication(genome, duplication_length_range):
