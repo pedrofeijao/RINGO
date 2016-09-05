@@ -256,6 +256,7 @@ def open_newick_tree(filename, label_internal_nodes=True):
 def write_newick_tree(tree, filename):
     tree.write_to_path(filename, schema="newick")
 
+
 def write_mgra2_config(extant_genomes, tree, filename):
     """
     Writes a MGRA2 config file, with the leaf genome names and tree topology

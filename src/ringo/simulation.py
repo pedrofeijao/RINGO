@@ -21,7 +21,9 @@ __author__ = 'pfeijao'
 
 # noinspection PyClassHasNoInit
 class EventType:
-    REARRANGEMENT, DELETION, INSERTION, DUPLICATION = range(4)
+    all = ["rearrangement", "deletion", "insertion", "duplication"]
+    REARRANGEMENT, DELETION, INSERTION, DUPLICATION = all
+
 
 
 # noinspection PyClassHasNoInit
@@ -189,6 +191,7 @@ class Simulation:
         duplication_length_range = xrange(1, param.duplication_length + 1)
 
         # choose events and apply:
+        event_count = {event:0 for event in EventType.all}
         events = np.random.choice(
             [EventType.REARRANGEMENT, EventType.INSERTION, EventType.DELETION, EventType.DUPLICATION], n,
             p=[param.rearrangement_p, param.insertion_p, param.deletion_p, param.duplication_p])
@@ -196,23 +199,20 @@ class Simulation:
         for event in events:  # number of events, can be weighted by 'scaling' parameters
             if event == EventType.REARRANGEMENT:
                 Simulation.apply_random_rearrangement(param, genome)
-                rearrangement_count += 1
 
             elif event == EventType.DELETION:
                 Simulation.apply_random_deletion(genome, deletion_length_range)
-                deletion_count += 1
             elif event == EventType.INSERTION:
                 current_insertion_gene = Simulation.apply_random_insertion(genome, current_insertion_gene,
                                                                            insertion_length_range, current_copy_number)
-                insertion_count += 1
             elif event == EventType.DUPLICATION:
                 # Simulation.apply_random_tandem_duplication(genome, duplication_length_range)
                 Simulation.apply_random_segmental_duplication(genome, duplication_length_range, current_copy_number)
-                duplication_count += 1
 
             else:
                 raise RuntimeError("Unknown evolutionary event.")
-        return rearrangement_count, insertion_count, deletion_count, duplication_count, current_insertion_gene
+            event_count[event] += 1
+        return event_count, current_insertion_gene
 
     def run_simulation(self):
 
@@ -228,6 +228,7 @@ class Simulation:
             if ev_node.parent_node is None:
                 # identity genome:
                 ev_node.value = current_genome = model.Genome.identity(param.num_genes, param.num_chr)
+                ev_node.events = {ev:0 for ev in EventType.all}
 
                 # add copy number information to track orthologous/paralogous, when duplications are present:
                 for chromosome in current_genome.chromosomes:
@@ -238,8 +239,8 @@ class Simulation:
                     Simulation.apply_random_segmental_duplication(current_genome,
                                                                   range(1, param.duplication_length + 1),
                                                                   current_copy_number)
+                ev_node.events[EventType.DUPLICATION] = param.pre_duplications
 
-                ev_node.rearrangements = ev_node.insertions = ev_node.deletions = ev_node.duplications = 0
                 if ev_node.label is None:
                     ev_node.label = "Root"
             else:
@@ -256,15 +257,15 @@ class Simulation:
                 weight = ev_node.edge.length
 
                 # evolution
-                rearrangements, insertions, deletions, duplications, current_insertion_gene = \
+                ev_count, current_insertion_gene = \
                     Simulation.apply_random_events(param, current_genome, int(weight), current_insertion_gene,
                                                    current_copy_number)
 
-                # update count of events:
-                ev_node.rearrangements = ev_node.parent_node.rearrangements + rearrangements
-                ev_node.deletions = ev_node.parent_node.deletions + deletions
-                ev_node.insertions = ev_node.parent_node.insertions + insertions
-                ev_node.duplications = ev_node.parent_node.duplications + duplications
+                # update count of events at node (from the root) and at each edge
+                ev_node.events = {ev: ev_node.parent_node.events[ev] + count for ev, count in ev_count.iteritems()}
+                ev_node.edge.events = ev_count
+
+
 
     # Custom simulation on the model of COSER paper, with D DCJs,
     def open_tree(self, treefile):
@@ -367,9 +368,16 @@ class Simulation:
             f.write("\n\n")
             f.write(tree.as_ascii_plot(show_internal_node_labels=True, plot_metric='length') + "\n")
 
+        # Events per edge:
+        with open(os.path.join(sim.folder, cfg.sim_events_file()), "w") as f:
+            f.write("Edge\t%s\n" % "\t".join(EventType.all))
+            for node in tree.postorder_node_iter():
+                if node == tree.seed_node:
+                    continue
+                f.write("%s\t%s\n" % (node.label, "\t".join(str(node.edge.events[ev]) for ev in EventType.all)))
+
         # Save parameters:
         file_ops.write_simulation_parameters(param, output)
-
 
 ## Main: Generate simulation
 

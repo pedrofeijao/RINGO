@@ -76,6 +76,9 @@ class RingoConfig(object):
     def sim_logfile(self):
         return self.config.get("Filenames", "sim_logfile")
 
+    def sim_events_file(self):
+        return self.config.get("Filenames", "sim_events_file")
+
     def sim_mgra_config(self):
         return self.config.get("Filenames", "sim_mgra_config")
 
