@@ -110,6 +110,39 @@ def open_genome_file(filename, as_list=False):
     return genomes
 
 
+def open_copy_number_file(genomes, filename):
+    current_idx = 0
+    chr_idx = 0
+    genome = None
+    with open(filename) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith(">"):
+                name = line[1:].strip().split(" ")[0]
+                genome = genomes[current_idx]
+                current_idx += 1
+                assert genome.name == name
+                chr_idx = 0
+            elif line.startswith("#"):
+                # chromosome; ignore name after, each new line is a new chromosome.
+                continue
+            else:
+                if line.endswith(LINEAR_END_CHR):
+                    circular = False
+                elif line.endswith(CIRCULAR_END_CHR):
+                    circular = True
+                else:
+                    raise RuntimeError("Invalid file %s. Unrecognized line:\n%s" % (filename, line))
+                genome.chromosomes[chr_idx].copy_number = map(int, line[:-1].strip().split(" "))
+
+
+def open_genomes_with_copy_number(genome_file, copy_file):
+    genomes = open_genome_file(genome_file, as_list=True)
+    open_copy_number_file(genomes, copy_file)
+    return genomes
+
 def open_adjacencies_file(filename):
     """
     Open a  file in adjacencies format. Genome identifiers are FASTA-like ">name" lines, and
@@ -151,7 +184,7 @@ def write_genomes_to_file(genomes, filename, write_chr_line=True):
                                      CIRCULAR_END_CHR if chromosome.circular else LINEAR_END_CHR))
 
 
-def write_genomes_copy_number_to_file(genomes, filename):
+def write_genomes_copy_number_to_file(genomes, filename, write_chr_line=True):
     """
     Write genomes in a file with GRIMM format.
     """
@@ -163,6 +196,8 @@ def write_genomes_copy_number_to_file(genomes, filename):
         for genome in iterator:
             f.write(">%s\n" % genome.name)
             for idx, chromosome in enumerate(genome.chromosomes):
+                if write_chr_line:
+                    f.write("# chr%d\n" % (idx + 1))
                 f.write("%s %s\n" % (" ".join([str(gene) for gene in chromosome.copy_number]),
                                      CIRCULAR_END_CHR if chromosome.circular else LINEAR_END_CHR))
 
@@ -221,13 +256,13 @@ def open_newick_tree(filename, label_internal_nodes=True):
 def write_newick_tree(tree, filename):
     tree.write_to_path(filename, schema="newick")
 
-def write_mgra2_config(leaf_genomes, tree, filename):
+def write_mgra2_config(extant_genomes, tree, filename):
     """
     Writes a MGRA2 config file, with the leaf genome names and tree topology
     """
     with open(filename, "w") as f:
         f.write("[Genomes]\n")
-        for label in leaf_genomes.iterkeys():
+        for label in extant_genomes.iterkeys():
             f.write("%s Genome_%s\n" % (label, label))
         f.write("\n[Trees]\n")
         f.write(tree.as_string(schema='newick', suppress_rooting=True, suppress_edge_lengths=True))

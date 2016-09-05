@@ -24,7 +24,6 @@ def run_L_D_simulation(self, L, D):
     # pre_dups (at root) and post_dups (at branches) to achieve 1.5 genes/family in average.
     pre_duplications = int(0.2 * param.num_genes / L)
     post_duplications = int(0.3 * param.num_genes / L)
-    print "dups:", pre_duplications, post_duplications
     current_copy_number = None  # will init at root
     deletion_length_range = xrange(1, param.indel_length + 1)
     duplication_length_range = xrange(1, L + 1)
@@ -105,3 +104,6 @@ if __name__ == '__main__':
     run_L_D_simulation(sim, param.duplication_length, param.rearrangements)
 
     sim.save_simulation(save_copies=True)
+
+    # save also in COSER format:
+    file_ops.write_genomes_coser_format(sim.extant_genomes, param.output)

@@ -64,14 +64,14 @@ class Simulation:
         self.sim_parameters = sim_parameters
         self.sim_tree = None
         self.folder = folder
-        self.leaf_genomes = None
+        self.extant_genomes = None
         self.ancestral_genomes = None
 
     @staticmethod
     def open_folder(folder):
         sim = Simulation(folder)
 
-        sim.leaf_genomes = file_ops.open_genome_file(os.path.join(folder, cfg.sim_leaf_genomes()))
+        sim.extant_genomes = file_ops.open_genome_file(os.path.join(folder, cfg.sim_extant_genomes()))
         sim.ancestral_genomes = file_ops.open_genome_file(os.path.join(folder, cfg.sim_ancestral_genomes()))
         sim.sim_tree = file_ops.open_newick_tree(os.path.join(folder, cfg.sim_tree()))
         sim.folder = folder
@@ -311,42 +311,42 @@ class Simulation:
                            suppress_edge_lengths=True, schema='newick')
 
         # create genomes:
-        self.leaf_genomes = {node.taxon.label: node.value for node in tree.leaf_nodes()}
+        self.extant_genomes = {node.taxon.label: node.value for node in tree.leaf_nodes()}
         self.ancestral_genomes = {node.label: node.value for node in tree.internal_nodes()}
 
         # Genomes:
-        file_ops.write_genomes_to_file(self.leaf_genomes, os.path.join(output, cfg.sim_leaf_genomes()))
+        file_ops.write_genomes_to_file(self.extant_genomes, os.path.join(output, cfg.sim_extant_genomes()))
         file_ops.write_genomes_to_file(self.ancestral_genomes, os.path.join(output, cfg.sim_ancestral_genomes()))
 
         # Copy number, if duplications present:
         if save_copies:
-            leaf_cn = cfg.sim_leaf_genomes() + cfg.copy_number_file_extension()
-            file_ops.write_genomes_copy_number_to_file(self.leaf_genomes, os.path.join(output, leaf_cn))
+            leaf_cn = cfg.sim_extant_genomes() + cfg.copy_number_file_extension()
+            file_ops.write_genomes_copy_number_to_file(self.extant_genomes, os.path.join(output, leaf_cn))
             ancestral_cn = cfg.sim_ancestral_genomes() + cfg.copy_number_file_extension()
             file_ops.write_genomes_to_file(self.ancestral_genomes, os.path.join(output, ancestral_cn))
 
         # Software-specific files:
         # MLGO, and maybe others, doesn't like the "#" lines; output a 'simple' version:
-        file_ops.write_genomes_to_file(self.leaf_genomes, os.path.join(output, cfg.sim_leaf_simple_genomes()),
+        file_ops.write_genomes_to_file(self.extant_genomes, os.path.join(output, cfg.sim_leaf_simple_genomes()),
                                        write_chr_line=False)
 
         # MGRA2:
-        file_ops.write_mgra2_config(self.leaf_genomes, tree, os.path.join(output, cfg.sim_mgra_config()))
+        file_ops.write_mgra2_config(self.extant_genomes, tree, os.path.join(output, cfg.sim_mgra_config()))
 
         # TODO: If no indel, also write output for Procar, Pathgroups and GASTS. Other softs?
         # # == Procar format:
         #
         # # Genomes:
-        # procar.write_procar_genomes(num_genes, leaf_genomes, PROCAR_GENOMES % output)
+        # procar.write_procar_genomes(num_genes, extant_genomes, PROCAR_GENOMES % output)
         # # Trees
         # procar.write_all_procar_trees(evolved, ancestral_genomes.keys(), PROCAR_TREE % output)
         #
         # # == PATHGROUPs format:
-        # ids = pathgroups.genomes_to_pathgroups(leaf_genomes, PATHGROUPS_GENOMES % output)
+        # ids = pathgroups.genomes_to_pathgroups(extant_genomes, PATHGROUPS_GENOMES % output)
         # pathgroups.tree_to_pathgroups(evolved, PATHGROUPS_TREE % output, ids)
         #
         # # == GASTS format:
-        # gasts.genomes_to_gasts(leaf_genomes, GASTS_GENOMES % output)
+        # gasts.genomes_to_gasts(extant_genomes, GASTS_GENOMES % output)
 
         # Log:
         param = self.sim_parameters

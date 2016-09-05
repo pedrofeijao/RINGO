@@ -15,11 +15,11 @@ if __name__ == '__main__':
     param = parser.parse_args()
 
     # read input:
-    leaf_genomes = file_ops.open_genome_file(param.input_genomes)
+    extant_genomes = file_ops.open_genome_file(param.input_genomes)
     tree = file_ops.open_newick_tree(param.tree, label_internal_nodes=True)
 
     # calc weight:
-    internalAdjWeight = algorithms.ancestral_adjacency_weights(Tree(tree), leaf_genomes)
+    internalAdjWeight = algorithms.ancestral_adjacency_weights(Tree(tree), extant_genomes)
 
     # write output:
     file_ops.write_ancestral_weights(internalAdjWeight, param.output)

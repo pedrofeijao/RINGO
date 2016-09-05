@@ -7,7 +7,7 @@ pyximport.install()
 import os
 import itertools
 import operator
-from model import Genome, Chromosome, Ext
+from model import DupGenome, DupChromosome, Ext
 import networkx as nx
 from networkx.algorithms import connected_components
 import matplotlib.pyplot as plt
@@ -107,7 +107,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output):
                 c.gene_order.append(0)
                 c.circular = True
         for i in range(genome.n_chromosomes(), max_chromosomes):
-            genome.add_chromosome(Chromosome([0], circular=True))
+            genome.add_chromosome(DupChromosome([0], circular=True))
 
     # count of each gene on each genome
     gene_count = {"A": genome_a.gene_count(), "B": genome_b.gene_count()}
@@ -450,8 +450,11 @@ if __name__ == '__main__':
     param = parser.parse_args()
 
     genomes = file_ops.open_genome_file(param.file, as_list=True)
-    filename = "%s_%d_%d.lp" % (os.path.basename(param.file), param.g1, param.g2)
-    dcj_dupindel_ilp(genomes[param.g1], genomes[param.g2], filename)
+    g1 = genomes[param.g1]
+    g2 = genomes[param.g2]
+
+    filename = "%s_%s_%s.lp" % (os.path.basename(param.file), g1.name,  g2.name)
+    dcj_dupindel_ilp(g1, g2, filename)
 
     if param.solve:
         model = solve_ilp(filename)

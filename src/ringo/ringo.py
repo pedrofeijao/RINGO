@@ -47,30 +47,30 @@ if __name__ == '__main__':
             print >> sys.stderr, "Blossom5 not found, it is needed for perfect matching. Either install blossom5 or do not use the '-p' perfect matching option."
             sys.exit(-1)
 
-    leaf_genomes = file_ops.open_genome_file(param.input_genomes)
+    extant_genomes = file_ops.open_genome_file(param.input_genomes)
     tree = file_ops.open_newick_tree(param.tree, label_internal_nodes=True)
 
     # estimate lenghts:
     if param.estimate_lenghts is not None:
         if param.estimate_lenghts == "lp":
-            algorithms.estimate_branch_lengths_lp(tree, leaf_genomes)
+            algorithms.estimate_branch_lengths_lp(tree, extant_genomes)
         elif param.estimate_lenghts == "least_squares":
-            algorithms.estimate_branch_lengths_least_squares(tree, leaf_genomes)
+            algorithms.estimate_branch_lengths_least_squares(tree, extant_genomes)
     else:
         # default is to run it anyway, if the tree has no branch lengths:
         if any([node.edge.length is None for node in tree.leaf_nodes()]):
-            algorithms.estimate_branch_lengths_lp(tree, leaf_genomes)
+            algorithms.estimate_branch_lengths_lp(tree, extant_genomes)
 
     # if no weights file is given, use default weighting scheme:
     if param.adj_weights_file is None:
-        internalAdjWeight = algorithms.ancestral_adjacency_weights(Tree(tree), leaf_genomes)
+        internalAdjWeight = algorithms.ancestral_adjacency_weights(Tree(tree), extant_genomes)
 
 
     else:
         # if weights are given, use: (usually DeClone weights):
         internalAdjWeight = file_ops.open_ancestral_weights(param.adj_weights_file, cutoff=param.weight_filter)
 
-    reconstructed = algorithms.ig_indel_small_phylogeny(leaf_genomes, tree, internalAdjWeight,
+    reconstructed = algorithms.ig_indel_small_phylogeny(extant_genomes, tree, internalAdjWeight,
                         perfect_matching=param.perfect, random_repeat=param.random_repeat, add_open_2_cycles=param.add_open_2_cycles)
 
     # output:
@@ -91,5 +91,5 @@ if __name__ == '__main__':
     ancestral = file_ops.open_genome_file(param.ancestral) if param.ancestral is not None else None
     # BP graph plot:
     if param.bp:
-        reconstructed.update(leaf_genomes)
+        reconstructed.update(extant_genomes)
         plot_bp.draw_all_bp(reconstructed, tree, folder, internalAdjWeight, ancestral)

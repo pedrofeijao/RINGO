@@ -44,7 +44,7 @@ def random_adjacencies_from_list(adj_list):
 
 
 # Int Gen:
-def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=True, perfect_matching=False,
+def ig_indel_small_phylogeny(extant_genomes, tree, ancestral_adj, solve_median=True, perfect_matching=False,
     random_repeat=0,add_open_2_cycles=False):
     # helper functions:
     def add_match_nodes(c_a, c_b, label_a, label_b, ancestral_weight, graph, c_type, path_parity=None):
@@ -429,7 +429,7 @@ def ig_indel_small_phylogeny(leaf_genomes, tree, ancestral_adj, solve_median=Tru
     # ==== STARTING MAIN FUNCTION: ig_indel_small_phylogeny
 
     # dict to store genomes; starts with the leaves, will get the ancestors.
-    genomes = dict(leaf_genomes)
+    genomes = dict(extant_genomes)
 
     # dynamic tree (gets updated during the process, cutting the leafs of
     # reconstructed nodes.
@@ -946,7 +946,7 @@ def max_weight_ind_set(cycle, weight, parity_filter=True):
     return edges, W[0]
 
 
-def build_ancestral_gene_set(tree, leaf_genomes, one_node=None):
+def build_ancestral_gene_set(tree, extant_genomes, one_node=None):
     gene_sets = {}
     all_nodes = tree.internal_nodes() if one_node is None else [one_node]
     for ancestral in all_nodes:
@@ -959,7 +959,7 @@ def build_ancestral_gene_set(tree, leaf_genomes, one_node=None):
         gene_set_intermediate = {}
         for node in t.postorder_node_iter():
             if node.is_leaf():
-                gene_set_intermediate[node.label] = leaf_genomes[
+                gene_set_intermediate[node.label] = extant_genomes[
                     node.label].gene_set()
             else:
                 gene_set_intermediate[node.label] = set.union(
@@ -969,15 +969,15 @@ def build_ancestral_gene_set(tree, leaf_genomes, one_node=None):
     return gene_sets
 
 
-def ancestral_adjacency_weights(tree, leaf_genomes, node=None):
-    return ancestral_weights(tree, leaf_genomes, node, genes=False)
+def ancestral_adjacency_weights(tree, extant_genomes, node=None):
+    return ancestral_weights(tree, extant_genomes, node, genes=False)
 
 
-def ancestral_gene_weights(tree, leaf_genomes, node=None):
-    return ancestral_weights(tree, leaf_genomes, node, genes=True)
+def ancestral_gene_weights(tree, extant_genomes, node=None):
+    return ancestral_weights(tree, extant_genomes, node, genes=True)
 
 
-def ancestral_weights(tree, leaf_genomes, one_node, genes):
+def ancestral_weights(tree, extant_genomes, one_node, genes):
 
     # set edge lenghts if not present:
     for edge in tree.preorder_edge_iter():
@@ -998,10 +998,10 @@ def ancestral_weights(tree, leaf_genomes, one_node, genes):
             if node.is_leaf():
                 if genes:
                     weights[node.label] = {
-                        adj: 1 for adj in leaf_genomes[node.label].gene_set()}
+                        adj: 1 for adj in extant_genomes[node.label].gene_set()}
                 else:
                     weights[node.label] = {
-                        adj: 1 for adj in leaf_genomes[node.label].adjacency_set()}
+                        adj: 1 for adj in extant_genomes[node.label].adjacency_set()}
                 continue
             # weighted sum with the child nodes:
             d = 0

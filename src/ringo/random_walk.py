@@ -12,9 +12,8 @@ import file_ops
 
 
 class RandomWalkParams(SimParameters):
-    def __init__(self, pre_dup=0, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         SimParameters.__init__(self, *args, **kwargs)
-        self.pre_duplications = pre_dup
 
 
 class RandomWalk:
@@ -47,7 +46,6 @@ class RandomWalk:
         current_genome = Genome.identity(sim_param.num_genes, sim_param.num_chr, name="G_0")
 
         # add copy number information to track orthologous/paralogous, when duplications are present:
-        # if sim_param.pre_duplications > 0 or sim_param.duplication_p > 0:
         for chromosome in current_genome.chromosomes:
             chromosome.copy_number = [1] * len(chromosome.gene_order)
         current_copy_number = current_genome.gene_count()

@@ -58,8 +58,8 @@ class RingoConfig(object):
         return self.config.get("Paths", "blossom5_path")
 
     # Simulations
-    def sim_leaf_genomes(self):
-        return self.config.get("Filenames", "sim_leaf_genomes")
+    def sim_extant_genomes(self):
+        return self.config.get("Filenames", "sim_extant_genomes")
 
     def sim_leaf_simple_genomes(self):
         return self.config.get("Filenames", "sim_leaf_simple_genomes")
