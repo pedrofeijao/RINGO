@@ -330,6 +330,9 @@ class Simulation:
         file_ops.write_genomes_to_file(self.extant_genomes, os.path.join(output, cfg.sim_leaf_simple_genomes()),
                                        write_chr_line=False)
 
+        #COSER:
+        file_ops.write_genomes_coser_format(sim.extant_genomes, output)
+
         # MGRA2:
         file_ops.write_mgra2_config(self.extant_genomes, tree, os.path.join(output, cfg.sim_mgra_config()))
 
