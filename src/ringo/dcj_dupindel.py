@@ -484,7 +484,7 @@ if __name__ == '__main__':
         g1 = file_ops.open_coser_genome(param.c[0])
         g2 = file_ops.open_coser_genome(param.c[1])
         filename = "ilp"
-    filename = "%s_%s_%s.lp" % (filename, g1.name, g2.name)
+    filename = "%s_%s_%s%s.lp" % (filename, g1.name, g2.name, "_nobal" if param.skip_balancing else "")
     dcj_dupindel_ilp(g1, g2, filename, skip_balancing=param.skip_balancing, fix_vars=param.skip_fixing)
 
     if param.solve:
