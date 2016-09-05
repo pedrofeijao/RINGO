@@ -1,4 +1,6 @@
 #!/usr/bin/env python2
+import os
+
 import pyximport;pyximport.install()
 import argparse
 import re
@@ -39,7 +41,12 @@ def parse_ilp_sol(filename):
     for genome, gene, copy in genes.iterkeys():
         G.add_edge((genome, gene, copy, Ext.HEAD), (genome, gene, copy, Ext.TAIL))
 
-    indels = len(list(connected_components(G)))
+    # indels = len(list(connected_components(G)))
+    indels = {"A": 0, "B": 0}
+    for comp in connected_components(G):
+        genome, gene, copy, ext = list(comp)[0]
+        indels[genome] += 1
+
     # log file:
 
     logfile = filename.replace("sol", "log")
@@ -57,17 +64,18 @@ def parse_ilp_sol(filename):
 
         # print "GAP:", gap
         # print "TIME:", time
-    return obj, obj-indels, indels, time, gap
+    rearr = obj - indels["A"] - indels["B"]
+    return obj, rearr, indels["B"], indels["A"], time, gap
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Creates a summary file from a list of CPLEX solution files to the DCJdupindel ILP.")
     parser.add_argument("files", type=str, nargs="+", help="Solution file(s).")
     param = parser.parse_args()
-    print "\t".join(["File", "total", "rearrangement", "indel", "time", "gap"])
+    print "\t".join(["File", "total", "rearrangement", "dup/ins", "deletion", "time", "gap"])
     for sol_file in param.files:
         r = parse_ilp_sol(sol_file)
-        title = sol_file.replace(".lp.sol", "").replace("genomes.txt_", "")
+        title = os.path.basename(sol_file).replace(".lp.sol", "").replace("genomes.txt_", "")
         print "\t".join([title] + [str(x) for x in r])
 
 
