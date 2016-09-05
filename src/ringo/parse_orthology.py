@@ -11,10 +11,12 @@ import re
 matching_regexp = re.compile("<variable name=\"x_A(\d+)_(\d+)h,B(\d+)_(\d+)h.*value=\"(.+)\"")
 #   <variable name="x_A5_1t,B5_2t" index="150" value="1"/>
 
+
 def parse_assignment_quality(sol_file, correct_assignment):
     matching = {}
     # open genomes to get the correct matching:
-    correct = wrong = 0
+    correct = set()
+    wrong = set()
     with open(sol_file) as f:
         for l in f:
             m = matching_regexp.match(l.strip())
@@ -24,9 +26,9 @@ def parse_assignment_quality(sol_file, correct_assignment):
                     matching[(int(gene_a), int(copy_a))] = int(copy_b)
     for gene_i, copy_i in correct_assignment.iteritems():
         if matching[gene_i] == copy_i:
-            correct += 1
+            correct.add((gene_i,copy_i))
         else:
-            wrong += 1
+            wrong.add((gene_i, copy_i))
     return correct, wrong
 
 
@@ -47,7 +49,7 @@ if __name__ == '__main__':
         # init the sequential assignment with 1
         copy_number = {gene: 1 for gene in genome.gene_count()}
         for chrom in genome.chromosomes:
-            for gene_i, copy_i in zip(map(abs,chrom.gene_order), chrom.copy_number):
+            for gene_i, copy_i in zip(map(abs, chrom.gene_order), chrom.copy_number):
                 copy_dict[(gene_i, copy_i)] = copy_number[gene_i]
                 copy_number[gene_i] += 1
         # now build the correct genome A IDX -> genome B IDX assignment:
@@ -56,9 +58,11 @@ if __name__ == '__main__':
         copy_number = {gene: 1 for gene in genome.gene_count()}
         for chrom in genome.chromosomes:
             for gene_i, copy_i in zip(map(abs,chrom.gene_order), chrom.copy_number):
-                correct_assignment[(gene_i, copy_number[gene_i])] = copy_dict[(gene_i, copy_i)]
+                if (gene_i, copy_i) in copy_dict:
+                    correct_assignment[(gene_i, copy_number[gene_i])] = copy_dict[(gene_i, copy_i)]
                 copy_number[gene_i] += 1
         # print correct
         sol_file = "%s_%s_%s.lp.sol" % (param.genome_file, genomes[0].name, genomes[i].name)
         correct, wrong = parse_assignment_quality(sol_file, correct_assignment)
-        print "I:%d TP:%d TN:%d" % (i, correct, wrong)
+        print "I:%d TP:%d TN:%d" % (i, len(correct), len(wrong))
+        print wrong
