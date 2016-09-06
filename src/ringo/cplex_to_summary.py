@@ -115,6 +115,9 @@ if __name__ == '__main__':
         # distance/rearrangement results:
         sol_file = os.path.join(folder, "extant_genomes.txt_T2_T1.lp.sol")
         # sol_file = os.path.join(folder, "extant_genomes.txt_T2_T1_nobal.lp")
+        if not os.path.exists(sol_file):
+            continue
+
         r = parse_ilp_sol(sol_file)
         result.update(r)
         #result["file"] = os.path.basename(sol_file)  # .replace(".lp.sol", "")#.replace("extant_genomes.txt_", "")
