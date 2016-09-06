@@ -1,5 +1,6 @@
 #!/usr/bin/env python2
 import argparse
+import os
 import re
 
 # Best objective 4.937500000000e+02, best bound 4.937500000000e+02, gap 0.0%
@@ -7,6 +8,17 @@ sol_regexp = re.compile('Best objective (.+), best bound (.+), gap (.+)%')
 
 # genome2 total      25 duplicons of length   1
 dup_regexp = re.compile('genome(\d) total\s+(\d+) duplicons')
+
+
+def parse_filetime(file):
+    with open(file) as f:
+        t = 0
+        for l in f:
+            if l.startswith("real"):
+                s, time = l.strip().split()
+                m = re.search("(\d+)m(\d+)\.(\d+)s", time)
+                t += 60 * int(m.group(1)) + int(m.group(2)) + float(m.group(3)) / 1000
+        return t
 
 
 def parse_coser_sol(filename):
@@ -23,11 +35,21 @@ def parse_coser_sol(filename):
                 duplications[int(m.group(1))] = m.group(2)
 
     # Log for time:
-    logfile = filename.replace("out", "log")
-    with open(logfile) as f:
-        time = f.readline().strip()
+    time = parse_filetime(filename.replace("out", "log"))
 
-    return obj, duplications[1], duplications[2], time, gap
+    # orthology:
+    correct = set()
+    wrong = set()
+    with open(os.path.join(os.path.dirname(filename), "mapping")) as f:
+        for l in f:
+            a, b = l.strip().split()
+            if a == b:
+                correct.add((a, b))
+            else:
+                wrong.add((a, b))
+
+    return {"dcj_distance": obj, "duplications_a": duplications[1], "duplications_b": duplications[2],
+            "time": time, "gap": gap, "ortho_TP": len(correct), "ortho_FP": len(wrong)}
 
 
 if __name__ == '__main__':
@@ -38,5 +60,5 @@ if __name__ == '__main__':
     print "\t".join(["File", "Dist", "Dup1", "Dup2", "RunningTime", "Gap"])
     for sol_file in param.files:
         r = parse_coser_sol(sol_file)
-        title = sol_file.replace(".out", "").replace("coser.", "").replace(".","_")
+        title = sol_file.replace(".out", "").replace("coser.", "").replace(".", "_")
         print "\t".join([title] + [str(x) for x in r])

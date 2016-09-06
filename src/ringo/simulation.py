@@ -2,7 +2,9 @@
 import ringo_config
 
 cfg = ringo_config.RingoConfig()
-import pyximport;pyximport.install(build_dir=cfg.pyximport_build())
+import pyximport;
+
+pyximport.install(build_dir=cfg.pyximport_build())
 import argparse
 import os
 import random
@@ -25,10 +27,10 @@ class EventType:
     REARRANGEMENT, DELETION, INSERTION, DUPLICATION = all
 
 
-
 # noinspection PyClassHasNoInit
 class RearrangementType:
-    REVERSAL, TRANSLOCATION, TRANSPOSITION = range(3)
+    all = ["reversal", "translocation", "transposition"]
+    REVERSAL, TRANSLOCATION, TRANSPOSITION = all
 
 
 class SimParameters:
@@ -78,6 +80,18 @@ class Simulation:
         sim.sim_tree = file_ops.open_newick_tree(os.path.join(folder, cfg.sim_tree()))
         sim.folder = folder
 
+        # events:
+        try:
+            with open(os.path.join(sim.folder, cfg.sim_events_file())) as f:
+                l = f.readline()
+                header = l.strip().split()
+                for l in f:
+                    fields = l.strip().split()
+                    node = sim.sim_tree.find_node_with_label(fields[0])
+                    events = {field: int(r) for field, r in zip(header[1:], fields[1:])}
+                    node.edge.events = events
+        except IOError:
+            pass
         sim.sim_parameters = SimParameters()
         # Reading data back
         sim.sim_parameters.__dict__ = file_ops.read_simulation_parameters(folder)
@@ -191,7 +205,7 @@ class Simulation:
         duplication_length_range = xrange(1, param.duplication_length + 1)
 
         # choose events and apply:
-        event_count = {event:0 for event in EventType.all}
+        event_count = {event: 0 for event in EventType.all}
         events = np.random.choice(
             [EventType.REARRANGEMENT, EventType.INSERTION, EventType.DELETION, EventType.DUPLICATION], n,
             p=[param.rearrangement_p, param.insertion_p, param.deletion_p, param.duplication_p])
@@ -228,7 +242,7 @@ class Simulation:
             if ev_node.parent_node is None:
                 # identity genome:
                 ev_node.value = current_genome = model.Genome.identity(param.num_genes, param.num_chr)
-                ev_node.events = {ev:0 for ev in EventType.all}
+                ev_node.events = {ev: 0 for ev in EventType.all}
 
                 # add copy number information to track orthologous/paralogous, when duplications are present:
                 for chromosome in current_genome.chromosomes:
@@ -264,8 +278,6 @@ class Simulation:
                 # update count of events at node (from the root) and at each edge
                 ev_node.events = {ev: ev_node.parent_node.events[ev] + count for ev, count in ev_count.iteritems()}
                 ev_node.edge.events = ev_count
-
-
 
     # Custom simulation on the model of COSER paper, with D DCJs,
     def open_tree(self, treefile):
@@ -331,8 +343,8 @@ class Simulation:
         file_ops.write_genomes_to_file(self.extant_genomes, os.path.join(output, cfg.sim_leaf_simple_genomes()),
                                        write_chr_line=False)
 
-        #COSER:
-        file_ops.write_genomes_coser_format(sim.extant_genomes, output)
+        # COSER:
+        file_ops.write_genomes_coser_format(self.extant_genomes, output)
 
         # MGRA2:
         file_ops.write_mgra2_config(self.extant_genomes, tree, os.path.join(output, cfg.sim_mgra_config()))
@@ -369,7 +381,7 @@ class Simulation:
             f.write(tree.as_ascii_plot(show_internal_node_labels=True, plot_metric='length') + "\n")
 
         # Events per edge:
-        with open(os.path.join(sim.folder, cfg.sim_events_file()), "w") as f:
+        with open(os.path.join(self.folder, cfg.sim_events_file()), "w") as f:
             f.write("Edge\t%s\n" % "\t".join(EventType.all))
             for node in tree.postorder_node_iter():
                 if node == tree.seed_node:
@@ -378,6 +390,7 @@ class Simulation:
 
         # Save parameters:
         file_ops.write_simulation_parameters(param, output)
+
 
 ## Main: Generate simulation
 
