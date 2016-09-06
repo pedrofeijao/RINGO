@@ -100,10 +100,11 @@ if __name__ == '__main__':
         # sim data:
         sim = Simulation.open_folder(folder)
         result = {"dup_length": "%d" % sim.sim_parameters.duplication_length,
-                  "dup_prob": "%.1f" % sim.sim_parameters.duplication_p, "folder": folder,
+                  "dup_prob": "%.2f" % sim.sim_parameters.duplication_p, "folder": folder,
+                  "del_prob": "%.2f" % sim.sim_parameters.deletion_p,
                   "real_distance": int(sim.sim_parameters.scale * sim.sim_parameters.num_genes)
                   }
-        key = "L%(dup_length)s_P%(dup_prob)s" % result
+        key = "L%(dup_length)s_dup%(dup_prob)s_del%(del_prob)s" % result
         # tree events:
         result.update(
             {"%s_%s" % (g, event): sim.sim_tree.find_node_with_label(g).edge.events[event] for g in ["T1", "T2"] for
