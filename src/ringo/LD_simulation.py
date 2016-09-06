@@ -33,6 +33,7 @@ def run_L_D_simulation(self, L, D):
         if ev_node.parent_node is None:
             # identity genome:
             ev_node.value = current_genome = model.Genome.identity(param.num_genes, param.num_chr)
+            ev_node.events = {ev: 0 for ev in EventType.all}
 
             # add copy number information to track orthologous/paralogous, when duplications are present:
             for chromosome in current_genome.chromosomes:
@@ -44,7 +45,8 @@ def run_L_D_simulation(self, L, D):
                                                               range(1, param.duplication_length + 1),
                                                               current_copy_number)
 
-            ev_node.rearrangements = ev_node.insertions = ev_node.deletions = ev_node.duplications = 0
+            ev_node.events[EventType.DUPLICATION] = pre_duplications
+
             if ev_node.label is None:
                 ev_node.label = "Root"
         else:
@@ -59,20 +61,29 @@ def run_L_D_simulation(self, L, D):
             current_genome = ev_node.parent_node.value.clone(ev_node.label)
             ev_node.value = current_genome
             ev_node.edge.length = D
+
             # events
             events = [EventType.DUPLICATION] * post_duplications + [EventType.REARRANGEMENT] * D
+
+            ev_node.edge.events = {ev: 0 for ev in EventType.all}
             random.shuffle(events)
             for event in events:
                 if event == EventType.DUPLICATION:
                     Simulation.apply_random_segmental_duplication(current_genome, duplication_length_range, current_copy_number)
+                    ev_node.edge.events[event] += 1
                 elif event == EventType.REARRANGEMENT:
                     # here, I can also have deletions:
                     ev = np.random.choice([RearrangementType.REVERSAL, EventType.DELETION], 1,
-                                          p=[param.rearrangement_p, param.deletion_p])
+                                          p=[param.rearrangement_p, param.deletion_p])[0]
                     if ev == RearrangementType.REVERSAL:
                         Simulation.apply_random_reversal(current_genome)
+                        ev_node.edge.events[event] += 1
                     else:
                         Simulation.apply_random_deletion(current_genome, deletion_length_range)
+                        ev_node.edge.events[EventType.DELETION] += 1
+
+            ev_node.events = {ev: ev_node.parent_node.events[ev] + count for ev, count in
+                              ev_node.edge.events.iteritems()}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -105,5 +116,3 @@ if __name__ == '__main__':
 
     sim.save_simulation(save_copies=True)
 
-    # save also in COSER format:
-    file_ops.write_genomes_coser_format(sim.extant_genomes, param.output)
