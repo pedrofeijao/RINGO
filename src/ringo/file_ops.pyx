@@ -2,7 +2,6 @@ __author__ = 'pfeijao'
 
 import glob
 import os
-import math
 from model import Genome, Chromosome
 from dendropy import Tree
 import ringo_config
@@ -138,8 +137,9 @@ def open_copy_number_file(genomes, filename):
                 genome.chromosomes[chr_idx].copy_number = map(int, line[:-1].strip().split(" "))
 
 
-def open_genomes_with_copy_number(genome_file, copy_file):
+def open_genomes_with_copy_number(genome_file):
     genomes = open_genome_file(genome_file, as_list=True)
+    copy_file = genome_file + cfg.copy_number_file_extension()
     open_copy_number_file(genomes, copy_file)
     return genomes
 
