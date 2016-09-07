@@ -1,4 +1,6 @@
 #!/usr/bin/env python2
+import collections
+
 import pyximport;
 
 pyximport.install()
@@ -191,8 +193,9 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
     constraints = []
 
     # consistency and matching 1-to-1
-    constraints.append("\ Matching and consistency constraints")
+    constraints.append("\consistency and A matching constraints")
     # sorting just to make it nicer looking:
+    b_neighbours = collections.defaultdict(list)
     for (gene, copy_a) in sorted(edges):
         copy_set_b = edges[(gene, copy_a)]
         if len(copy_set_b) == 1:
@@ -200,11 +203,21 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
             constraints.append("%s = 1" % matching_edge_name(gene, copy_a, list(copy_set_b)[0], Ext.HEAD))
         else:
             for copy_b in copy_set_b:
+                # HEAD TAIL consistency:
                 constraints.append("%s - %s = 0" % (
                     matching_edge_name(gene, copy_a, copy_b, Ext.TAIL),
                     matching_edge_name(gene, copy_a, copy_b, Ext.HEAD)))
+                # save this A node for the B neighbourhood:
+                b_neighbours[(gene, copy_b)].append(copy_a)
+            # unique matching:
             constraints.append(
                 " + ".join([matching_edge_name(gene, copy_a, copy_b, Ext.TAIL) for copy_b in copy_set_b]) + " = 1")
+
+    constraints.append("\ B matching constraints")
+    # also force unique matching for the B nodes:
+    for (gene, copy_b), copies_a in b_neighbours.iteritems():
+        constraints.append(
+            " + ".join([matching_edge_name(gene, copy_a, copy_b, Ext.TAIL) for copy_a in copies_a]) + " = 1")
 
     balancing_genes = {
         "A": {g: range(gene_count["A"][g] + 1, gene_count["B"][g] + 1) for g in total_gene_count.iterkeys()
@@ -372,7 +385,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
     general.append("c")
     # # objective function:
     z_obj = " - ".join(["z_%d" % i for vertex, i in sorted(y_label.items(), key=operator.itemgetter(1)) if
-                      vertex[0] == "A" and i not in z_fix])
+                        vertex[0] == "A" and i not in z_fix])
 
     objective = ["obj: n - c %s" % ("- " + z_obj if len(z_obj) > 0 else "")]
     # write ILP:
