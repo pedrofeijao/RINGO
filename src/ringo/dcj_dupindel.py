@@ -448,6 +448,7 @@ if __name__ == '__main__':
                         help="Do not add balancing edges.")
     parser.add_argument("-sf", "--skip_fixing", action="store_false", default=True,
                         help="Do not try to fix variables.")
+    parser.add_argument("-t", "--timelimit", type=int, default=60, help="Time limit in seconds for the solver. (default 60 secs.)")
     input_type = parser.add_mutually_exclusive_group(required=True)
     input_type.add_argument("-g", type=str, nargs=3, help="Genomes file, idx 1 and 2 of genomes (0-indexed).")
     # parser.add_argument("g1", type=int, help="Index of genome 1 in the file. (0-indexed).")
@@ -468,4 +469,4 @@ if __name__ == '__main__':
     dcj_dupindel_ilp(g1, g2, filename, skip_balancing=param.skip_balancing, fix_vars=param.skip_fixing)
 
     if param.solve:
-        model = solve_ilp(filename)
+        model = solve_ilp(filename,timelimit=param.timelimit)
