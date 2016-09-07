@@ -1,6 +1,8 @@
 import copy
 from collections import Counter
 
+import itertools
+
 __author__ = 'pfeijao'
 
 
@@ -105,6 +107,26 @@ class Genome:
     def __str__(self):
         return ">" + self.name + "\n" + "[" + ", ".join([str(c) for c in self.chromosomes]) + "]"
 
+    # Duplicated genes:
+    def adjacency_iter_with_copies(self):
+        # using the tuplet list generated from "build_extremity_order_lists", outputs a
+        # list of pairs of tuplets, represeting the adjacencies.
+        ext_order_list = self.build_extremity_order_lists()
+        for ext_order in ext_order_list:
+            # rotate 1 to make the adjacencies:
+            a = iter(ext_order[1:] + ext_order[:1])
+            # yield
+            for i, j in itertools.izip(a, a):
+                yield i, j    # i=(gene_i, copy_i, ext_i), j=(gene_j, copy_j, ext_j)
+
+    def build_extremity_order_lists(self):
+        copy_number = {gene: 1 for gene in self.gene_set()}
+        ext_order_list = []
+        for idx, chrom in enumerate(self.chromosomes):
+            ext_order_list.append(chrom.build_chromosome_ext_order(copy_number))
+        return ext_order_list
+
+
 
 class Chromosome:
     def __init__(self, gene_order, circular=False, copy_number=None):
@@ -140,6 +162,19 @@ class Chromosome:
         return Chromosome(list(self.gene_order), self.circular,
                           copy_number=list(self.copy_number) if self.copy_number is not None else None)
 
+
+    # Duplicated genes:
+    def build_chromosome_ext_order(self, copy_number):
+        # returns a list of tuplets (gene, copy, extremity) for the extremities
+        ext_list = []
+        for gene in self.gene_order:
+            if gene >= 0:
+                orientation = [Ext.TAIL, Ext.HEAD]
+            else:
+                orientation = [Ext.HEAD, Ext.TAIL]
+            ext_list.extend([(abs(gene), copy_number[abs(gene)], ext) for ext in orientation])
+            copy_number[abs(gene)] += 1
+        return ext_list
 
 class Ext:
     HEAD = 'h'

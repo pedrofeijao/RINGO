@@ -42,39 +42,6 @@ def define_y_label(gene_count):
     return y_label
 
 
-def build_extremity_order_lists(genome, gene_count):
-    copy_number = {gene: 1 for gene in gene_count.iterkeys()}
-    ext_order_list = []
-    for idx, chrom in enumerate(genome.chromosomes):
-        ext_order_list.append(build_chromosome_ext_order(copy_number, chrom))
-    return ext_order_list
-
-
-def build_chromosome_ext_order(copy_number, chromosome):
-    # returns a list of tuplets (gene, copy, extremity) for the extremities of a given chromosome "chrom"
-    ext_list = []
-    for gene in chromosome.gene_order:
-        if gene >= 0:
-            orientation = [Ext.TAIL, Ext.HEAD]
-        else:
-            orientation = [Ext.HEAD, Ext.TAIL]
-        ext_list.extend([(abs(gene), copy_number[abs(gene)], ext) for ext in orientation])
-        copy_number[abs(gene)] += 1
-    return ext_list
-
-
-def adjacency_list(genome, gene_count):
-    # using the tuplet list generated from "build_extremity_order_lists", outputs a
-    # list of pairs of tuplets, represeting the adjacencies.
-    ext_order_list = build_extremity_order_lists(genome, gene_count)
-    for ext_order in ext_order_list:
-        # rotate 1 to make the adjacencies:
-        a = iter(ext_order[1:] + ext_order[:1])
-        # yield
-        for i, j in itertools.izip(a, a):
-            yield i, j
-
-
 def balancing_extremities(balancing, exclude=None):
     if exclude is None:
         exclude = set()
@@ -139,7 +106,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
 
         # add adjacency edges:
         for genome, genome_name in [(genome_a, "A"), (genome_b, "B")]:
-            for (g_i, copy_a, e_i), (g_j, copy_b, e_j) in adjacency_list(genome, total_gene_count):
+            for (g_i, copy_a, e_i), (g_j, copy_b, e_j) in genome.adjacency_iter_with_copies():
                 master_graph.add_edge((genome_name, g_i, copy_a, e_i), (genome_name, g_j, copy_b, e_j))
 
         # Search components to fix:
@@ -272,7 +239,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
     # for each adjacency, fix label:
     constraints.append("\\ Adjacency have the same label:")
     for genome, genome_name in [(genome_a, "A"), (genome_b, "B")]:
-        for i, j in adjacency_list(genome, total_gene_count):
+        for i, j in genome.adjacency_iter_with_copies():
             v_i = vertex_name(genome_name, *i)
             v_j = vertex_name(genome_name, *j)
             # if already fixed, skip
