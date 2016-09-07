@@ -229,9 +229,8 @@ if __name__ == '__main__':
         results[key].append(result)
         # COSER:
         if param.coser:
-            coser_file = os.path.join(folder, "coser.out")
-            if os.path.exists(coser_file):
-                coser_result.update(parse_coser_sol(coser_file))
+            if os.path.exists(os.path.join(folder, "mapping")):
+                coser_result.update(parse_coser_sol(folder))
                 coser_results[key].append(coser_result)
 
     # output:
