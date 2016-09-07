@@ -115,13 +115,23 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
         rescan = True
         edges_to_add = []
         vertices_to_remove = []
+        ab_components = set()
         while rescan:
             rescan = False
             master_graph.add_edges_from(edges_to_add)
             master_graph.remove_nodes_from(vertices_to_remove)
             edges_to_add = []
             vertices_to_remove = []
-
+            # AB-components; while I have at least 2, join them:
+            while len(ab_components)>1:
+                a_i, b_i = ab_components.pop()
+                a_j, b_j = ab_components.pop()
+                master_graph.add_edge(a_i, a_j)
+                balancing_fix["A"][a_i[1:]] = a_j[1:]
+                balancing_fix["A"][a_j[1:]] = a_i[1:]
+                master_graph.add_edge(b_i, b_j)
+                balancing_fix["B"][b_i[1:]] = b_j[1:]
+                balancing_fix["B"][b_j[1:]] = b_i[1:]
             # check each connected component:
             for comp in connected_components(master_graph):
                 # get degree-1 vertices:
@@ -138,12 +148,16 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                         if genome_i == genome_j:  # AA- or BB-path, close it
                             balancing_fix[genome_i][degree_one[0][1:]] = degree_one[1][1:]
                             balancing_fix[genome_i][degree_one[1][1:]] = degree_one[0][1:]
+                            edges_to_add.append(degree_one)
+                            rescan = True
                         else:
-                            # TODO: deal with AB-components;
-                            pass
+                            ab_components.add(tuple(sorted(degree_one)))
+                            if len(ab_components)>1:
+                                rescan = True
 
                     # if the path has homologous genes at the ends, I can join:
                     elif genome_i != genome_j and g_i == g_j and e_i == e_j:
+
                         # invert to put genome A always in variables _i :
                         if genome_j == "A":
                             genome_i, g_i, copy_a, e_i, genome_j, g_j, copy_b, e_j = genome_j, g_j, copy_b, e_j, genome_i, g_i, copy_a, e_i
@@ -170,7 +184,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                                             edges_to_add.append((("A", g_i, idx, ext), ("B", g_i, idx_c, ext)))
                                 except KeyError:
                                     pass
-                            break
+                            # break
                 # if no degree one vertices, it is a cycle, I can fix the y_i:
                 elif len(degree_one) == 0:
                     # get indexes of the y_i:
