@@ -229,8 +229,10 @@ if __name__ == '__main__':
         results[key].append(result)
         # COSER:
         if param.coser:
-            coser_result.update(parse_coser_sol(os.path.join(folder, "coser.out")))
-            coser_results[key].append(coser_result)
+            coser_file = os.path.join(folder, "coser.out")
+            if os.path.exists(coser_file):
+                coser_result.update(parse_coser_sol(coser_file))
+                coser_results[key].append(coser_result)
 
     # output:
     # DCJDUP:
