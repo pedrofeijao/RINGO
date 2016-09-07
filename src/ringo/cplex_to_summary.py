@@ -155,7 +155,7 @@ def parse_nobal_ilp_sol(filename, genome_a, genome_b):
     gap, time = parse_log_file(filename.replace("sol", "log"))
 
     # correct objective function, since each AB-component is counted as a full cycle in the ILP, but
-    # should only by half-cycle. 
+    # should only by half-cycle.
     obj += len(ab_components)/2
 
     rearr = obj - indels["A"] - indels["B"]
@@ -207,16 +207,17 @@ if __name__ == '__main__':
         # and each connected component is a circular chromosome in the completion.
         if not param.skip_balancing:
             sol_file = os.path.join(folder, "extant_genomes.txt_T2_T1.lp.sol")
+            if not os.path.exists(sol_file):
+                continue
             r = parse_ilp_sol(sol_file)
         else:
             # without balancing edges, we have to create the master graph and check which type of
             # open components we get (AA-, BB- or AB-), and then merge them into cycles; AA and BB
             # are unique, but AB- are paired arbitrarly.
             sol_file = os.path.join(folder, "extant_genomes.txt_T2_T1_nobal.lp.sol")
+            if not os.path.exists(sol_file):
+                continue
             r = parse_nobal_ilp_sol(sol_file, genomes[0], genomes[1])
-
-        if not os.path.exists(sol_file):
-            continue
 
         result.update(r)
         # result["file"] = os.path.basename(sol_file)  # .replace(".lp.sol", "")#.replace("extant_genomes.txt_", "")
@@ -232,7 +233,6 @@ if __name__ == '__main__':
             coser_results[key].append(coser_result)
 
     # output:
-    # TODO: parse the no balancing ILP for distance correction, orthology detection;
     # DCJDUP:
     dcj_out = param.out
     if param.skip_balancing:
