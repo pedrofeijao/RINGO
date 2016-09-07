@@ -21,9 +21,10 @@ def parse_filetime(file):
         return t
 
 
-def parse_coser_sol(filename):
+def parse_coser_sol(folder):
     duplications = {1: 0, 2: 0}
     obj = gap = 0
+    filename = os.path.join(folder, "coser.out")
     with open(filename) as f:
         for l in f:
             l = l.strip()
@@ -40,7 +41,7 @@ def parse_coser_sol(filename):
     # orthology:
     correct = set()
     wrong = set()
-    with open(os.path.join(os.path.dirname(filename), "mapping")) as f:
+    with open(os.path.join(folder, "mapping")) as f:
         for l in f:
             a, b = l.strip().split()
             if a == b:
