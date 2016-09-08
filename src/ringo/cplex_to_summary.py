@@ -247,6 +247,6 @@ if __name__ == '__main__':
     if param.coser:
         for key, result in coser_results.iteritems():
             with open("coser_%s_%s.txt" % (param.out, key), "w") as f:
-                print >> f, "\t".join(fields)
+                print >> f, "\t".join(coser_fields)
                 for line in sorted(result, key=lambda r: (r['dup_length'], r["dup_prob"], r["real_distance"])):
                     print >> f, "\t".join([str(line[field]) for field in coser_fields])
