@@ -77,6 +77,9 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
     # count of each gene on each genome
     gene_count = {"A": genome_a.gene_count(), "B": genome_b.gene_count()}
 
+    # gene_copies = {"A": genome_a.gene_copies(), "B": genome_b.gene_copies()}
+
+
     # for all genes ,the total "balanced" count:
     total_gene_count = {g: max(gene_count["A"][g], gene_count["B"][g]) for g in
                         set(gene_count["A"].keys()).union(set(gene_count["B"].keys()))}
@@ -84,11 +87,16 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
     # define the y labels -> integer 1..n
     y_label = define_y_label(total_gene_count)
 
-    # list of possible edges for each vertex:
-    edges = {}
+    # list of possible edges for each A-vertex:
+    fixed_edges = {}
+    open_edges = {}
     for gene, copies in total_gene_count.iteritems():
-        for i in xrange(1, copies + 1):
-            edges[(gene, i)] = set(range(1, copies + 1))
+        if copies == 1:
+            fixed_edges[(gene, 1)] = {1}
+        else:
+            for i in xrange(1, copies+1):
+                fixed_edges[(gene, i)] = set(range(1, copies + 1))
+            # open_edges[gene] = [set(range(1, copies + 1)), set(range(1, copies + 1))]
 
     # try to fix variables:
     y_fix = {}
@@ -100,9 +108,9 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
         # fixed vars:
 
         # add matching edges of genes with single copy:
-        for (gene, copy_a), set_y in edges.iteritems():
-            if len(set_y) == 1:
-                copy_b = list(set_y)[0]
+        for (gene, copy_a), copy_set_b in fixed_edges.iteritems():
+            if len(copy_set_b) == 1:
+                copy_b = list(copy_set_b)[0]
                 for ext in [Ext.HEAD, Ext.TAIL]:
                     master_graph.add_edge(("A", gene, copy_a, ext), ("B", gene, copy_b, ext))
 
@@ -118,12 +126,14 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
         ab_components = set()
         while rescan:
             rescan = False
+            # Pre-scan:
+            # add and remove edges detected from previous rounds:
             master_graph.add_edges_from(edges_to_add)
             master_graph.remove_nodes_from(vertices_to_remove)
             edges_to_add = []
             vertices_to_remove = []
-            # AB-components; while I have at least 2, join them:
-            while len(ab_components)>1:
+            # fix AB-components; while I have at least 2, join pairs arbitrarily:
+            while len(ab_components) > 1:
                 a_i, b_i = ab_components.pop()
                 a_j, b_j = ab_components.pop()
                 master_graph.add_edge(a_i, a_j)
@@ -132,7 +142,8 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                 master_graph.add_edge(b_i, b_j)
                 balancing_fix["B"][b_i[1:]] = b_j[1:]
                 balancing_fix["B"][b_j[1:]] = b_i[1:]
-            # check each connected component:
+
+            # now loop for each connected component, fixing cycles and trying to close paths to cycles when possible.
             for comp in connected_components(master_graph):
                 # get degree-1 vertices:
                 degree_one = [v for v in comp if master_graph.degree(v) == 1]
@@ -141,29 +152,33 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                 if len(degree_one) == 2:
                     genome_i, g_i, copy_a, e_i = degree_one[0]
                     genome_j, g_j, copy_b, e_j = degree_one[1]
-                    # 1 - check if nodes are balancing, to find AA-, BB- and AB- paths that can be fixed.
+                    # 1 - check if both nodes are balancing, to find AA-, BB- and AB- paths that can be fixed.
                     i_is_balancing = g_i != 0 and copy_a > gene_count[genome_i][g_i]
                     j_is_balancing = g_j != 0 and copy_b > gene_count[genome_j][g_j]
                     if i_is_balancing and j_is_balancing:
-                        if genome_i == genome_j:  # AA- or BB-path, close it
+                        # open-path, both ends are balancing.
+                        # If AA- or BB-path, close it to a cycle:
+                        if genome_i == genome_j:
                             balancing_fix[genome_i][degree_one[0][1:]] = degree_one[1][1:]
                             balancing_fix[genome_i][degree_one[1][1:]] = degree_one[0][1:]
                             edges_to_add.append(degree_one)
                             rescan = True
                         else:
+                        # If not, it is AB-, add to the list to try to make pairs.
                             ab_components.add(tuple(sorted(degree_one)))
-                            if len(ab_components)>1:
+                            if len(ab_components) > 1:
                                 rescan = True
 
-                    # if the path has homologous genes at the ends, I can join:
+                    # Not open path; then, check if the path has homologous extremities at both ends, so I can close
+                    # to a path:
                     elif genome_i != genome_j and g_i == g_j and e_i == e_j:
-
                         # invert to put genome A always in variables _i :
                         if genome_j == "A":
                             genome_i, g_i, copy_a, e_i, genome_j, g_j, copy_b, e_j = genome_j, g_j, copy_b, e_j, genome_i, g_i, copy_a, e_i
-                        # check conflict, only add edge if ok:
-                        if copy_b in edges[(g_i, copy_a)]:
-                            edges[(g_i, copy_a)] = {copy_b}
+
+                        # check conflict, only add edge if it's in the allowed edges:
+                        if copy_b in fixed_edges[(g_i, copy_a)]:
+                            fixed_edges[(g_i, copy_a)] = {copy_b}
                             # save edges to add to graph:
                             for ext in [Ext.HEAD, Ext.TAIL]:
                                 edges_to_add.append((("A", g_i, copy_a, ext), ("B", g_i, copy_b, ext)))
@@ -176,16 +191,16 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                                     continue
                                 try:
                                     # if not there already, exception is thrown, that' ok
-                                    edges[(g_i, idx)].remove(copy_b)
+                                    fixed_edges[(g_i, idx)].remove(copy_b)
                                     # Add new edges to graph, if the removal created degree 1 vertices:
-                                    if len(edges[(g_i, idx)]) == 1:
-                                        idx_c = list(edges[(g_i, idx)])[0]
+                                    if len(fixed_edges[(g_i, idx)]) == 1:
+                                        idx_c = list(fixed_edges[(g_i, idx)])[0]
                                         for ext in [Ext.HEAD, Ext.TAIL]:
                                             edges_to_add.append((("A", g_i, idx, ext), ("B", g_i, idx_c, ext)))
                                 except KeyError:
                                     pass
-                            # break
-                # if no degree one vertices, it is a cycle, I can fix the y_i:
+
+                # if there are no degree one vertices, it is a cycle; I can fix the y_i and z_i for this cycle:
                 elif len(degree_one) == 0:
                     # get indexes of the y_i:
                     indexes = [(v, y_label[vertex_name(*v)]) for v in comp]
@@ -195,6 +210,17 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                         z_fix[label] = 0
                     z_fix[min_label] = 1
                     vertices_to_remove.extend(comp)
+
+            # After scanning the components, now I search for vertices that have only balancing vertices as matching
+            # candidates. If that is the case, I can fix them arbitrarly.
+            for (gene, copy_a), copy_set_b in fixed_edges.iteritems():
+                if len(copy_set_b) > 1 and all([gene != 0 and copy_b > gene_count["B"][gene] for copy_b in copy_set_b]):
+                    # fix all guys here;
+                    # print "Gene %s has only balancing mates, with %d copies." % (gene, len(copy_set_b))
+                    pass
+
+
+
 
     # DRAW?
     # nx.draw_circular(master_graph, font_size=8, width=0.5, node_shape="8", node_size=1, with_labels=True)
@@ -210,8 +236,8 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
     constraints.append("\consistency and A matching constraints")
     # sorting just to make it nicer looking:
     b_neighbours = collections.defaultdict(list)
-    for (gene, copy_a) in sorted(edges):
-        copy_set_b = edges[(gene, copy_a)]
+    for (gene, copy_a) in sorted(fixed_edges):
+        copy_set_b = fixed_edges[(gene, copy_a)]
         if len(copy_set_b) == 1:
             constraints.append("%s = 1" % matching_edge_name(gene, copy_a, list(copy_set_b)[0], Ext.TAIL))
             constraints.append("%s = 1" % matching_edge_name(gene, copy_a, list(copy_set_b)[0], Ext.HEAD))
@@ -276,8 +302,8 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
             constraints.append("y_%s - y_%s = 0 \\ %s <-> %s " % (y_label[v_i], y_label[v_j], v_i, v_j))
     #
     constraints.append("\\ Matching edges with the same label:")
-    for (gene, copy_a) in sorted(edges):
-        copy_set_b = edges[(gene, copy_a)]
+    for (gene, copy_a) in sorted(fixed_edges):
+        copy_set_b = fixed_edges[(gene, copy_a)]
         for ext in [Ext.HEAD, Ext.TAIL]:
             y_i = y_label[vertex_name("A", gene, copy_a, ext)]
             # if edge is set, just make the y_i's equal;
@@ -351,7 +377,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
     # matching edges, skipping fixed pairs.
     matching = ["\ match"]
     # for vertex, i in sorted(y_label.items(), key=operator.itemgetter(1)):
-    for (gene, copy_a), copy_set_b in sorted(edges.items(), key=operator.itemgetter(0)):
+    for (gene, copy_a), copy_set_b in sorted(fixed_edges.items(), key=operator.itemgetter(0)):
         # fixed vars, just the head, to know the fixed value when parsing;
         # update; put all, easier to compare;
         if len(copy_set_b) == 1:
@@ -462,7 +488,8 @@ if __name__ == '__main__':
                         help="Do not add balancing edges.")
     parser.add_argument("-sf", "--skip_fixing", action="store_false", default=True,
                         help="Do not try to fix variables.")
-    parser.add_argument("-t", "--timelimit", type=int, default=60, help="Time limit in seconds for the solver. (default 60 secs.)")
+    parser.add_argument("-t", "--timelimit", type=int, default=60,
+                        help="Time limit in seconds for the solver. (default 60 secs.)")
     input_type = parser.add_mutually_exclusive_group(required=True)
     input_type.add_argument("-g", type=str, nargs=3, help="Genomes file, idx 1 and 2 of genomes (0-indexed).")
     # parser.add_argument("g1", type=int, help="Index of genome 1 in the file. (0-indexed).")
@@ -472,7 +499,7 @@ if __name__ == '__main__':
     param = parser.parse_args()
     if param.g is not None:
         filename, n1, n2 = param.g
-        genomes = file_ops.open_genome_file(filename, as_list=True)
+        genomes = file_ops.open_genomes_with_copy_number(filename)
         g1 = genomes[int(n1)]
         g2 = genomes[int(n2)]
     elif param.c is not None:
@@ -483,4 +510,4 @@ if __name__ == '__main__':
     dcj_dupindel_ilp(g1, g2, filename, skip_balancing=param.skip_balancing, fix_vars=param.skip_fixing)
 
     if param.solve:
-        model = solve_ilp(filename,timelimit=param.timelimit)
+        model = solve_ilp(filename, timelimit=param.timelimit)
