@@ -374,6 +374,8 @@ class Simulation:
             f.write("Evol.Rate\t%d\n" % param.rate)
             f.write("Num_events\t%d\n" % int(tree.length()))
             f.write("Avg events per branch\t%.2f\n" % (tree.length() / (len(list(tree.postorder_edge_iter())) - 1)))
+            if param.pre_duplications > 0:
+                f.write("Duplications at root\t%d\n" % param.pre_duplications)
             d = {node.taxon.label: node.distance_from_root() for node in tree.leaf_nodes()}
             f.write("Diameter: %.1f\n" % algorithms.tree_diameter(tree))
             f.write(",".join(["(%s:%d)" % (node, distance) for node, distance in d.iteritems()]))

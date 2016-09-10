@@ -4,14 +4,8 @@ import ringo_config
 cfg = ringo_config.RingoConfig()
 import pyximport;pyximport.install(build_dir=cfg.pyximport_build())
 import argparse
-import os
 import random
-import math
-from dendropy import Tree
-from dendropy.simulate import treesim
 import numpy as np
-import algorithms
-import file_ops
 import model
 from simulation import Simulation, SimParameters, EventType, RearrangementType
 
@@ -24,6 +18,7 @@ def run_L_D_simulation(self, L, D):
     # pre_dups (at root) and post_dups (at branches) to achieve 1.5 genes/family in average.
     pre_duplications = int(0.3 * param.num_genes / L)
     post_duplications = int(0.2 * param.num_genes / L)
+    param.pre_duplications = pre_duplications
     current_copy_number = None  # will init at root
     deletion_length_range = xrange(1, param.indel_length + 1)
     duplication_length_range = xrange(1, L + 1)
@@ -46,6 +41,7 @@ def run_L_D_simulation(self, L, D):
                                                               current_copy_number)
 
             ev_node.events[EventType.DUPLICATION] = pre_duplications
+            # ev_node.edge.length = pre_duplications
 
             if ev_node.label is None:
                 ev_node.label = "Root"
@@ -60,7 +56,7 @@ def run_L_D_simulation(self, L, D):
 
             current_genome = ev_node.parent_node.value.clone(ev_node.label)
             ev_node.value = current_genome
-            ev_node.edge.length = D
+            ev_node.edge.length = D + post_duplications
 
             # events
             events = [EventType.DUPLICATION] * post_duplications + [EventType.REARRANGEMENT] * D

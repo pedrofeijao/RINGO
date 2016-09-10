@@ -1,3 +1,4 @@
+import collections
 import copy
 from collections import Counter
 
@@ -120,13 +121,17 @@ class Genome:
                 yield i, j    # i=(gene_i, copy_i, ext_i), j=(gene_j, copy_j, ext_j)
 
     def build_extremity_order_lists(self):
-        copy_number = {gene: 1 for gene in self.gene_set()}
         ext_order_list = []
         for idx, chrom in enumerate(self.chromosomes):
-            ext_order_list.append(chrom.build_chromosome_ext_order(copy_number))
+            ext_order_list.append(chrom.build_chromosome_ext_order())
         return ext_order_list
 
-
+    def gene_copies(self):
+        copies = collections.defaultdict(set)
+        for chrom in self.chromosomes:
+            for gene_i, copy_i in zip(chrom.gene_order, chrom.copy_number):
+                copies[abs(gene_i)].add(copy_i)
+        return copies
 
 class Chromosome:
     def __init__(self, gene_order, circular=False, copy_number=None):
@@ -164,16 +169,15 @@ class Chromosome:
 
 
     # Duplicated genes:
-    def build_chromosome_ext_order(self, copy_number):
+    def build_chromosome_ext_order(self):
         # returns a list of tuplets (gene, copy, extremity) for the extremities
         ext_list = []
-        for gene in self.gene_order:
+        for gene, copy_n in zip(self.gene_order, self.copy_number):
             if gene >= 0:
                 orientation = [Ext.TAIL, Ext.HEAD]
             else:
                 orientation = [Ext.HEAD, Ext.TAIL]
-            ext_list.extend([(abs(gene), copy_number[abs(gene)], ext) for ext in orientation])
-            copy_number[abs(gene)] += 1
+            ext_list.extend([(abs(gene), copy_n, ext) for ext in orientation])
         return ext_list
 
 class Ext:
