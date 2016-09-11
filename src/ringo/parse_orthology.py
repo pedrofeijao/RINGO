@@ -1,4 +1,5 @@
 #!/usr/bin/env python2
+import collections
 import os
 
 import pyximport;
@@ -12,8 +13,17 @@ matching_regexp = re.compile("<variable name=\"x_A(\d+)_(\d+)h,B(\d+)_(\d+)h.*va
 #   <variable name="x_A5_1t,B5_2t" index="150" value="1"/>
 
 
-def parse_assignment_quality(sol_file, correct_assignment):
-    matching = {}
+def parse_assignment_quality(sol_file, genome_a, genome_b):
+    all_genes = genome_a.gene_set().union(genome_b.gene_set())
+    gene_copies_a = genome_a.gene_copies()
+    gene_copies_b = genome_b.gene_copies()
+
+    correct_matching = {}
+    for gene in all_genes:
+        if len(gene_copies_a[gene]) > 1 or len(gene_copies_b[gene]) > 1:
+            correct_matching[gene] = gene_copies_a[gene].intersection(gene_copies_b[gene])
+
+    matching = collections.defaultdict(list)
     # open genomes to get the correct matching:
     correct = set()
     wrong = set()
@@ -23,13 +33,23 @@ def parse_assignment_quality(sol_file, correct_assignment):
             if m is not None:
                 gene_a, copy_a, gene_b, copy_b, val = m.groups()
                 if float(val) >= 0.9 and int(gene_a) > 0:
-                    matching[(int(gene_a), int(copy_a))] = int(copy_b)
-    for gene_i, copy_i in correct_assignment.iteritems():
-        if gene_i in matching and matching[gene_i] == copy_i:
-            correct.add((gene_i,copy_i))
-        else:
-            wrong.add((gene_i, copy_i))
-    return correct, wrong
+                    matching[int(gene_a)].append((int(copy_a),int(copy_b)))
+
+    for gene, pair_list in matching.iteritems():
+        if gene not in correct_matching: # if it is not, it a single copy gene, skip;
+            continue
+        for (c_a, c_b) in pair_list:
+            # if both copies are not there, it is a balancing match;
+            if c_a not in correct_matching[gene] and c_b not in correct_matching[gene]:
+                continue
+            if c_a == c_b and c_a in correct_matching[gene]:
+                correct.add((gene, c_a))
+                correct_matching[gene].remove(c_a)
+            else:
+                print gene, c_a, c_b
+                wrong.add((gene, c_a))
+
+    return correct, wrong, correct_matching
 
 
 def build_gene_copy_assignment(genome_a, genome_b):
