@@ -4,6 +4,8 @@ import os
 
 import pyximport;
 
+from dcj_dupindel import add_capping_genes
+
 pyximport.install()
 from model import Ext, Chromosome
 import file_ops
@@ -85,17 +87,11 @@ def parse_nobal_ilp_sol(filename, genome_a, genome_b):
     # build the master graph with matching and adjacency edges:
 
     # 1st add capping genes:
-    max_chromosomes = max(genome_a.n_chromosomes(), genome_b.n_chromosomes())
-    for genome in [genome_a, genome_b]:
-        for c in genome.chromosomes:
-            if not c.circular:
-                c.gene_order.append(0)
-                c.circular = True
-        for i in range(genome.n_chromosomes(), max_chromosomes):
-            genome.add_chromosome(Chromosome([0], circular=True))
+    add_capping_genes(genome_a, genome_b)
 
     master_graph = nx.Graph()
     obj = 0
+    print filename
     with open(filename) as f:
         for l in f:
             m = obj_regexp.match(l.strip())
@@ -175,11 +171,10 @@ if __name__ == '__main__':
     cfg = ringo_config.RingoConfig()
     sim_cols = ["dup_length", "dup_prob", "real_distance"]
     tree_events = ["%s_%s" % (g, event) for g in ["T1", "T2"] for event in EventType.all]
-    fields = sim_cols + tree_events + \
-             ["dcj_distance", "rearrangements", "indels_a", "indels_b", "time", "gap", "ortho_TP", "ortho_FP"]
+    time_ortho = ["time", "gap", "ortho_TP", "ortho_FP", "ortho_FN"]
 
-    coser_fields = sim_cols + tree_events + \
-                   ["dcj_distance", "duplications_a", "duplications_b", "time", "gap", "ortho_TP", "ortho_FP"]
+    fields = sim_cols + tree_events + ["dcj_distance", "rearrangements", "indels_a", "indels_b"] + time_ortho
+    coser_fields = sim_cols + tree_events + ["dcj_distance", "duplications_a", "duplications_b"] + time_ortho
 
     results = collections.defaultdict(list)
     coser_results = collections.defaultdict(list)
@@ -222,9 +217,9 @@ if __name__ == '__main__':
         result.update(r)
         # result["file"] = os.path.basename(sol_file)  # .replace(".lp.sol", "")#.replace("extant_genomes.txt_", "")
         # Orthology:
-        correct_assignment = build_gene_copy_assignment(genomes[0], genomes[1])
-        correct, wrong = parse_assignment_quality(sol_file, correct_assignment)
-        result.update({"ortho_TP": len(correct), "ortho_FP": len(wrong)})
+        # correct_assignment = build_gene_copy_assignment(genomes[0], genomes[1])
+        correct, wrong, not_matched = parse_assignment_quality(sol_file, genomes[0], genomes[1])
+        result.update({"ortho_TP": len(correct), "ortho_FP": len(wrong), "ortho_FN": len(not_matched)})
 
         results[key].append(result)
         # COSER:
