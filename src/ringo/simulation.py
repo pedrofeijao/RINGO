@@ -18,7 +18,6 @@ import model
 
 __author__ = 'pfeijao'
 
-
 # Config names:
 
 # noinspection PyClassHasNoInit
@@ -143,14 +142,17 @@ class Simulation:
         length = max(duplication_length_range)
         if bp + length > chromosome.length():
             length = chromosome.length() - bp
+        # print "L", length
         # position:
-        position = np.random.choice(range(bp) + range(bp + length, chromosome.length()))
+        position = np.random.choice(range(bp+1) + range(bp + length, chromosome.length()))
         block = chromosome.gene_order[bp:bp + length]
         # update gene copy number
+        copy_number_block = []
         for gene in block:
             current_copy_number[abs(gene)] += 1
+            copy_number_block.append(current_copy_number[abs(gene)])
         # apply dup:
-        chromosome.copy_number[position:position] = [current_copy_number[abs(x)] for x in block]
+        chromosome.copy_number[position:position] = copy_number_block
         chromosome.gene_order[position:position] = block
 
     @staticmethod
