@@ -16,7 +16,7 @@ from networkx.algorithms import connected_components
 from simulation import Simulation, EventType
 import ringo_config
 
-from parse_orthology import build_gene_copy_assignment, parse_assignment_quality
+from parse_orthology import parse_assignment_quality
 from coser_to_summary import parse_coser_sol
 
 time_regexp = re.compile('Solution time =\s+([\d\.]+)\s*sec.\s+Iterations')
@@ -91,7 +91,6 @@ def parse_nobal_ilp_sol(filename, genome_a, genome_b):
 
     master_graph = nx.Graph()
     obj = 0
-    print filename
     with open(filename) as f:
         for l in f:
             m = obj_regexp.match(l.strip())
@@ -120,10 +119,8 @@ def parse_nobal_ilp_sol(filename, genome_a, genome_b):
             assert len(degree_one) == 2
             # if AA- or BB, add the balancing edge:
             if degree_one[0][0] == degree_one[1][0]:
-                # edges.append(degree_one)
                 G.add_edge(*degree_one)
                 # add also the gene edges, from head to tail:
-                # edges.extend([[[genome, gene, copy, Ext.HEAD], (genome, gene, copy, Ext.TAIL)] for genome, gene, copy, ext in degree_one])
                 for genome, gene, copy, ext in degree_one:
                     G.add_edge((genome, gene, copy, Ext.HEAD), (genome, gene, copy, Ext.TAIL))
             else:
@@ -133,11 +130,7 @@ def parse_nobal_ilp_sol(filename, genome_a, genome_b):
     for ab_i, ab_j in zip(*[iter(ab_components)] * 2):
         G.add_edge(ab_i[0], ab_j[0])
         G.add_edge(ab_i[1], ab_j[1])
-        # edges.append([ab_i[0], ab_j[0]])
-        # edges.append([ab_i[1], ab_j[1]])
         # add also the gene edges, from head to tail:
-        # edges.extend([[[genome, gene, copy, Ext.HEAD], (genome, gene, copy, Ext.TAIL)] for genome, gene, copy, ext in
-        #               [ab_i[0], ab_i[1], ab_j[0], ab_j[1]]])
         for genome, gene, copy, ext in [ab_i[0], ab_i[1], ab_j[0], ab_j[1]]:
             G.add_edge((genome, gene, copy, Ext.HEAD), (genome, gene, copy, Ext.TAIL))
 
@@ -219,7 +212,8 @@ if __name__ == '__main__':
         # Orthology:
         # correct_assignment = build_gene_copy_assignment(genomes[0], genomes[1])
         correct, wrong, not_matched = parse_assignment_quality(sol_file, genomes[0], genomes[1])
-        result.update({"ortho_TP": len(correct), "ortho_FP": len(wrong), "ortho_FN": len(not_matched)})
+        not_matched_count = sum([len(x) for x in not_matched.itervalues()])
+        result.update({"ortho_TP": len(correct), "ortho_FP": len(wrong), "ortho_FN": not_matched_count})
 
         results[key].append(result)
         # COSER:

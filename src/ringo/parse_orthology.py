@@ -46,33 +46,8 @@ def parse_assignment_quality(sol_file, genome_a, genome_b):
                 correct.add((gene, c_a))
                 correct_matching[gene].remove(c_a)
             else:
-                print gene, c_a, c_b
                 wrong.add((gene, c_a))
-
     return correct, wrong, correct_matching
-
-
-def build_gene_copy_assignment(genome_a, genome_b):
-    # find the copy_to_ILP-idx assignment in the 2nd genome; the assignment for ILP is sequential
-    copy_dict = {}  # dict (gene,copy) -> idx
-    genome = genome_b
-    # init the sequential assignment with 1
-    copy_number = {gene: 1 for gene in genome.gene_count()}
-    for chrom in genome.chromosomes:
-        for gene_i, copy_i in zip(map(abs, chrom.gene_order), chrom.copy_number):
-            copy_dict[(gene_i, copy_i)] = copy_number[gene_i]
-            copy_number[gene_i] += 1
-    # now build the correct genome A IDX -> genome B IDX assignment:
-    correct_assignment = {}
-    genome = genome_a
-    copy_number = {gene: 1 for gene in genome.gene_count()}
-    for chrom in genome.chromosomes:
-        for gene_i, copy_i in zip(map(abs, chrom.gene_order), chrom.copy_number):
-            if (gene_i, copy_i) in copy_dict:
-                correct_assignment[(gene_i, copy_number[gene_i])] = copy_dict[(gene_i, copy_i)]
-            copy_number[gene_i] += 1
-    return correct_assignment
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
