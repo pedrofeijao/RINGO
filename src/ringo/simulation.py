@@ -125,14 +125,14 @@ class Simulation:
             chromosomes[0].copy_number[bp1:], chromosomes[1].copy_number[bp2:] = \
                 chromosomes[1].copy_number[bp2:], chromosomes[0].copy_number[bp1:]
 
-    @staticmethod
-    def apply_random_tandem_duplication(genome, duplication_length_range):
-        chromosome = np.random.choice(genome.chromosomes)
-        bp = np.random.choice(chromosome.length())
-        length = np.random.choice(duplication_length_range)
-        if bp + length > chromosome.length():
-            length = chromosome.length() - bp
-        chromosome.gene_order[bp:bp] = chromosome.gene_order[bp:bp + length]
+    # @staticmethod
+    # def apply_random_tandem_duplication(genome, duplication_length_range):
+    #     chromosome = np.random.choice(genome.chromosomes)
+    #     bp = np.random.choice(chromosome.length())
+    #     length = np.random.choice(duplication_length_range)
+    #     if bp + length > chromosome.length():
+    #         length = chromosome.length() - bp
+    #     chromosome.gene_order[bp:bp] = chromosome.gene_order[bp:bp + length]
 
     @staticmethod
     def apply_random_segmental_duplication(genome, duplication_length_range, current_copy_number):
@@ -161,6 +161,7 @@ class Simulation:
         if bp + length > chromosome.length():
             length = chromosome.length() - bp
         chromosome.gene_order[bp:bp + length] = []
+        chromosome.copy_number[bp:bp + length] = []
         ## remove chromosome if empty:
         if len(chromosome.gene_order) == 0:
             genome.chromosomes.remove(chromosome)
@@ -194,12 +195,6 @@ class Simulation:
 
     @staticmethod
     def apply_random_events(param, genome, n, current_insertion_gene, current_copy_number=None):
-        rearrangement_count = 0
-        insertion_count = 0
-        deletion_count = 0
-        duplication_count = 0
-        # param = self.sim_parameters
-
         insertion_length_range = xrange(1, param.indel_length + 1)
         deletion_length_range = xrange(1, param.indel_length + 1)
         duplication_length_range = xrange(1, param.duplication_length + 1)
