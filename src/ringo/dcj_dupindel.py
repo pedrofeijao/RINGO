@@ -83,18 +83,9 @@ def sort_component(G, comp, fmt=True):
     return sort
 
 
-######################################################################
-# MAIN function
-######################################################################
-
-def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=True):
-    # copy genomes to possibly make some changes:
-    genome_a = copy.deepcopy(genome_a)
-    genome_b = copy.deepcopy(genome_b)
+def add_capping_genes(genome_a, genome_b):
     max_chromosomes = max(genome_a.n_chromosomes(), genome_b.n_chromosomes())
-
-    # add capping genes:
-    for genome in [genome_a, genome_b]:
+    for genome in []:
         copy_idx = 1
         for c in genome.chromosomes:
             if not c.circular:
@@ -105,6 +96,28 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
         for i in range(genome.n_chromosomes(), max_chromosomes):
             genome.add_chromosome(Chromosome([0], copy_number=[copy_idx], circular=True))
             copy_idx += 1
+
+
+def fix_cycle_y_z(comp, y_label, y_fix, z_fix, vertices_to_remove):
+    # get indexes of the y_i:
+    indexes = [(v, y_label[v]) for v in comp]
+    min_label = min([x[1] for x in indexes])
+    for v, label in indexes:
+        y_fix[label] = min_label
+        z_fix[label] = 0
+    z_fix[min_label] = 1
+    vertices_to_remove.extend(comp)
+
+
+######################################################################
+# MAIN function
+######################################################################
+
+def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=True):
+    # copy genomes to possibly make some changes:
+    genome_a = copy.deepcopy(genome_a)
+    genome_b = copy.deepcopy(genome_b)
+
 
     # since the gene set might be different for each genome, find all genes:
     all_genes = genome_a.gene_set().union(genome_b.gene_set())
@@ -230,9 +243,6 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                     j_is_balancing = g_j != 0 and gene_copies[genome_j][g_j][copy_j] == CopyType.BALANCING
 
                     if i_is_balancing and j_is_balancing:
-                        if skip_balancing:
-                            continue
-
                         # open-path, both ends are balancing.
                         # If AA- or BB-path, close it to a cycle:
                         if genome_i == genome_j:
@@ -242,9 +252,14 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                             rescan = True
                         else:
                             # If not, it is AB-, add to the list to try to make pairs.
-                            ab_components.add(tuple(sorted(degree_one)))
-                            if len(ab_components) > 1:
-                                rescan = True
+                            if skip_balancing: # if not using balancing edges, I can fix the AB directly, instead of
+                                # doing the merge in pairs;
+                                fix_cycle_y_z(comp, y_label, y_fix, z_fix, vertices_to_remove)
+                            else:
+                                # merge in pairs:
+                                ab_components.add(tuple(sorted(degree_one)))
+                                if len(ab_components) > 1:
+                                    rescan = True
 
                     # Not open path; then, check if the path has homologous extremities at both ends, so I can close
                     # to a path:
@@ -278,14 +293,15 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
 
                 # if there are no degree one vertices, it is a cycle; I can fix the y_i and z_i for this cycle:
                 elif len(degree_one) == 0:
-                    # get indexes of the y_i:
-                    indexes = [(v, y_label[v]) for v in comp]
-                    min_label = min([x[1] for x in indexes])
-                    for v, label in indexes:
-                        y_fix[label] = min_label
-                        z_fix[label] = 0
-                    z_fix[min_label] = 1
-                    vertices_to_remove.extend(comp)
+                    fix_cycle_y_z(comp, y_label, y_fix, z_fix, vertices_to_remove)
+                    # # get indexes of the y_i:
+                    # indexes = [(v, y_label[v]) for v in comp]
+                    # min_label = min([x[1] for x in indexes])
+                    # for v, label in indexes:
+                    #     y_fix[label] = min_label
+                    #     z_fix[label] = 0
+                    # z_fix[min_label] = 1
+                    # vertices_to_remove.extend(comp)
                     rescan = True
 
     # DRAW:
