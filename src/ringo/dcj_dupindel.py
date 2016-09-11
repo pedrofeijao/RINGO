@@ -2,6 +2,7 @@
 import collections
 
 import pyximport;
+import re
 
 pyximport.install()
 from model import Ext, Chromosome
@@ -85,7 +86,7 @@ def sort_component(G, comp, fmt=True):
 
 def add_capping_genes(genome_a, genome_b):
     max_chromosomes = max(genome_a.n_chromosomes(), genome_b.n_chromosomes())
-    for genome in []:
+    for genome in [genome_a, genome_b]:
         copy_idx = 1
         for c in genome.chromosomes:
             if not c.circular:
@@ -113,11 +114,102 @@ def fix_cycle_y_z(comp, y_label, y_fix, z_fix, vertices_to_remove):
 # MAIN function
 ######################################################################
 
-def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=True):
+def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=True, solve=False):
+
+    def solve_ilp(timelimit=60):
+        # import here, so only if actually solving we will need gurobi.
+        from gurobipy import read, GRB
+        # pycharm complains of gurobi commands, cannot see them from the import
+        model = read(filename)
+
+        # set some options:
+        # time limit in seconds:
+        model.params.timeLimit = timelimit
+
+        # not verbose:
+        # model.setParam('OutputFlag', False)
+        # MIP focus, from 0 to 3:
+        model.params.MIPFocus = 1  # best solutions, less focus on bounds.
+        model.optimize()
+
+        if model.status != GRB.Status.INFEASIBLE:
+            print('FINISHED: Best objective: %g' % model.objVal)
+            print('Optimization ended with status %d' % model.status)
+            model.write(filename + '.sol')
+
+        if model.status == GRB.INFEASIBLE:
+            model.computeIIS()
+            model.write("unfeasible.lp")
+            print('\nThe following constraint(s) cannot be satisfied:')
+            for c in model.getConstrs():
+                if c.IISConstr:
+                    print('%s' % c.constrName)
+        else:
+            z = n = c = 0
+            correct_ortho = 0
+            wrong_ortho = 0
+            match_edges = {}
+            matching_regexp = re.compile("x_A(\d+)_(\d+)h,B(\d+)_(\d+)h")
+            for v in model.getVars():
+                if v.varName == "n":
+                    n = v.x
+                elif v.varName == "c":
+                    c = v.x
+                elif v.varName.startswith("z") and v.x >= 0.9:
+                    z += 1
+                else:
+                    m = matching_regexp.match(v.varName)
+                    if m is not None and v.x == 1:
+                        g_a, c_a, g_b, c_b = map(int,m.groups())
+                        match_edges[(g_a, c_a)] = c_b
+                        if c_a == c_b:
+                            correct_ortho += 1
+                        else:
+                            wrong_ortho += 1
+
+            print "N: %d  cycles:%d (%d fixed, %d from opt)" % (n, z + c, c, z)
+            print "Orthology. TP:%d  FP:%d" % (correct_ortho, wrong_ortho)
+            # print match_edges
+            # Now, analyse the BP graph, for the incomplete matching model, to find AA-, BB- and AB- components:
+            master_graph = nx.Graph()
+            # fixed vars:
+            # add matching edges of genes with single copy:
+            for (gene, copy_a), copy_j in match_edges.iteritems():
+                for ext in [Ext.HEAD, Ext.TAIL]:
+                    master_graph.add_edge(("A", gene, copy_a, ext), ("B", gene, copy_j, ext))
+
+            # add adjacency edges:
+            for genome, genome_name in [(genome_a, "A"), (genome_b, "B")]:
+                for (g_i, copy_a, e_i), (g_j, copy_j, e_j) in genome.adjacency_iter_with_copies():
+                    master_graph.add_edge((genome_name, g_i, copy_a, e_i), (genome_name, g_j, copy_j, e_j))
+
+
+            count = {"A": 0, "B": 0, "AB": 0}
+            c = 0
+            # print "C:", len([x for x in connected_components(master_graph)])
+            for comp in connected_components(master_graph):
+                degree_one = [v for v in comp if master_graph.degree(v) == 1]
+                if len(degree_one) == 0:
+                    c += 1
+                else:
+                    if len(degree_one) != 2:
+                        import ipdb; ipdb.set_trace()
+                    if degree_one[0][0] == degree_one[1][0]:
+                        count[degree_one[0][0]] += 1
+                    else:
+                        count["AB"] += 1
+            if skip_balancing:
+                print "Corrected distance: %d" % (model.objVal + count["AB"]/2)
+
+
+        return model
+
+
     # copy genomes to possibly make some changes:
     genome_a = copy.deepcopy(genome_a)
     genome_b = copy.deepcopy(genome_b)
 
+    add_capping_genes(genome_a, genome_b)
 
     # since the gene set might be different for each genome, find all genes:
     all_genes = genome_a.gene_set().union(genome_b.gene_set())
@@ -149,7 +241,6 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
     # define the y labels (vertex = genome,gene,copy,ext) -> integer 1..n
     y_label = define_y_label(gene_copies)
 
-    # import ipdb; ipdb.set_trace()
     # store all possible matchings (edges) from each family:
     fixed_matching = {}
     possible_matching = {}
@@ -246,13 +337,15 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                         # open-path, both ends are balancing.
                         # If AA- or BB-path, close it to a cycle:
                         if genome_i == genome_j:
-                            balancing_fix[genome_i][degree_one[0][1:]] = degree_one[1][1:]
-                            balancing_fix[genome_i][degree_one[1][1:]] = degree_one[0][1:]
-                            edges_to_add.append(degree_one)
-                            rescan = True
+                            # fix the cycle:
+                            fix_cycle_y_z(comp, y_label, y_fix, z_fix, vertices_to_remove)
+                            # fix the balancing variables if we have them:
+                            if not skip_balancing:
+                                balancing_fix[genome_i][degree_one[0][1:]] = degree_one[1][1:]
+                                balancing_fix[genome_i][degree_one[1][1:]] = degree_one[0][1:]
                         else:
                             # If not, it is AB-, add to the list to try to make pairs.
-                            if skip_balancing: # if not using balancing edges, I can fix the AB directly, instead of
+                            if skip_balancing:  # if not using balancing edges, I can fix the AB directly, instead of
                                 # doing the merge in pairs;
                                 fix_cycle_y_z(comp, y_label, y_fix, z_fix, vertices_to_remove)
                             else:
@@ -294,14 +387,6 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                 # if there are no degree one vertices, it is a cycle; I can fix the y_i and z_i for this cycle:
                 elif len(degree_one) == 0:
                     fix_cycle_y_z(comp, y_label, y_fix, z_fix, vertices_to_remove)
-                    # # get indexes of the y_i:
-                    # indexes = [(v, y_label[v]) for v in comp]
-                    # min_label = min([x[1] for x in indexes])
-                    # for v, label in indexes:
-                    #     y_fix[label] = min_label
-                    #     z_fix[label] = 0
-                    # z_fix[min_label] = 1
-                    # vertices_to_remove.extend(comp)
                     rescan = True
 
     # DRAW:
@@ -567,50 +652,9 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
             print >> f, header
             print >> f, "\n".join(lines)
 
-
-def solve_ilp(filename, timelimit=60):
-    # import here, so only if actually solving we will need gurobi.
-    from gurobipy import read, GRB
-    # pycharm complains of gurobi commands, cannot see them from the import
-    model = read(filename)
-
-    # set some options:
-    # time limit in seconds:
-    model.params.timeLimit = timelimit
-
-    # not verbose:
-    # model.setParam('OutputFlag', False)
-    # MIP focus, from 0 to 3:
-    model.params.MIPFocus = 1  # best solutions, less focus on bounds.
-    model.optimize()
-
-    if model.status != GRB.Status.INFEASIBLE:
-        print('FINISHED: Best objective: %g' % model.objVal)
-        print('Optimization ended with status %d' % model.status)
-        model.write(filename + '.sol')
-
-    if model.status == GRB.INFEASIBLE:
-        model.computeIIS()
-        model.write("unfeasible.lp")
-        print('\nThe following constraint(s) cannot be satisfied:')
-        for c in model.getConstrs():
-            if c.IISConstr:
-                print('%s' % c.constrName)
-    else:
-        z = 0
-        n = 0
-        c = 0
-        for v in model.getVars():
-            if v.varName == "n":
-                n = v.x
-            elif v.varName == "c":
-                c = v.x
-            elif v.varName.startswith("z") and v.x >= 0.9:
-                z += 1
-        print "N: %d  cycles:%d (%d fixed)" % (n, z + c, c)
-
-    return model
-
+    if solve:
+        model = solve_ilp(timelimit=60)
+        return model
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -624,8 +668,6 @@ if __name__ == '__main__':
                         help="Time limit in seconds for the solver. (default 60 secs.)")
     input_type = parser.add_mutually_exclusive_group(required=True)
     input_type.add_argument("-g", type=str, nargs=3, help="Genomes file, idx 1 and 2 of genomes (0-indexed).")
-    # parser.add_argument("g1", type=int, help="Index of genome 1 in the file. (0-indexed).")
-    # parser.add_argument("g2", type=int, help="Index of genome 1 in the file. (0-indexed).")
     input_type.add_argument("-c", type=str, nargs=2, help="Two coser files.")
 
     param = parser.parse_args()
@@ -639,7 +681,5 @@ if __name__ == '__main__':
         g2 = file_ops.open_coser_genome(param.c[1])
         filename = "ilp"
     filename = "%s_%s_%s%s.lp" % (filename, g1.name, g2.name, "_nobal" if param.skip_balancing else "")
-    dcj_dupindel_ilp(g1, g2, filename, skip_balancing=param.skip_balancing, fix_vars=param.skip_fixing)
+    dcj_dupindel_ilp(g1, g2, filename, skip_balancing=param.skip_balancing, fix_vars=param.skip_fixing, solve=param.solve)
 
-    if param.solve:
-        model = solve_ilp(filename, timelimit=param.timelimit)
