@@ -168,7 +168,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
             correct, wrong = ortho_qual(match_edges, correct_matching)
 
             print "N: %d  cycles:%d (%d fixed, %d from opt)" % (n, z + c, c, z)
-            print "Orthology. TP:%d  FP:%d" % (len(correct), len(wrong))
+            print "Orthology. TP:%d  FP:%d  FN:%d" % (len(correct), len(wrong), sum([len(x) for x in correct_matching.itervalues()]))
             # print match_edges
             # Now, analyse the BP graph, for the incomplete matching model, to find AA-, BB- and AB- components:
             master_graph = nx.Graph()
