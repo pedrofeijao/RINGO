@@ -145,11 +145,11 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                 if c.IISConstr:
                     print('%s' % c.constrName)
         else:
+
             z = n = c = 0
-            correct_ortho = 0
-            wrong_ortho = 0
-            match_edges = {}
+            match_edges = collections.defaultdict(list)
             matching_regexp = re.compile("x_A(\d+)_(\d+)h,B(\d+)_(\d+)h")
+            # get basic vars and matching:
             for v in model.getVars():
                 if v.varName == "n":
                     n = v.x
@@ -160,23 +160,25 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                 else:
                     m = matching_regexp.match(v.varName)
                     if m is not None and v.x == 1:
-                        g_a, c_a, g_b, c_b = map(int,m.groups())
-                        match_edges[(g_a, c_a)] = c_b
-                        if c_a == c_b:
-                            correct_ortho += 1
-                        else:
-                            wrong_ortho += 1
+                        g_a, c_a, g_b, c_b = map(int, m.groups())
+                        match_edges[g_a].append((c_a,c_b))
+
+            from parse_orthology import build_correct_matching, ortho_qual
+            correct_matching = build_correct_matching(genome_a, genome_b)
+            correct, wrong = ortho_qual(match_edges, correct_matching)
 
             print "N: %d  cycles:%d (%d fixed, %d from opt)" % (n, z + c, c, z)
-            print "Orthology. TP:%d  FP:%d" % (correct_ortho, wrong_ortho)
+            print "Orthology. TP:%d  FP:%d" % (len(correct), len(wrong))
             # print match_edges
             # Now, analyse the BP graph, for the incomplete matching model, to find AA-, BB- and AB- components:
             master_graph = nx.Graph()
             # fixed vars:
             # add matching edges of genes with single copy:
-            for (gene, copy_a), copy_j in match_edges.iteritems():
-                for ext in [Ext.HEAD, Ext.TAIL]:
-                    master_graph.add_edge(("A", gene, copy_a, ext), ("B", gene, copy_j, ext))
+            # for (gene, copy_a), copy_j in match_edges.iteritems():
+            for gene, pair_list in match_edges.iteritems():
+                for copy_a, copy_b in pair_list:
+                    for ext in [Ext.HEAD, Ext.TAIL]:
+                        master_graph.add_edge(("A", gene, copy_a, ext), ("B", gene, copy_b, ext))
 
             # add adjacency edges:
             for genome, genome_name in [(genome_a, "A"), (genome_b, "B")]:
@@ -198,6 +200,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                         count[degree_one[0][0]] += 1
                     else:
                         count["AB"] += 1
+            print count
             if skip_balancing:
                 print "Corrected distance: %d" % (model.objVal + count["AB"]/2)
 
