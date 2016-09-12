@@ -1,5 +1,6 @@
 #!/usr/bin/env python2
 import argparse
+import collections
 import os
 import re
 
@@ -21,7 +22,7 @@ def parse_filetime(file):
         return t
 
 
-def parse_coser_sol(folder):
+def parse_coser_sol(folder, correct_matching):
     duplications = {1: 0, 2: 0}
     obj = gap = 0
     filename = os.path.join(folder, "coser.out")
@@ -39,18 +40,21 @@ def parse_coser_sol(folder):
     time = parse_filetime(filename.replace("out", "log"))
 
     # orthology:
-    correct = set()
-    wrong = set()
+    from parse_orthology import parse_orthology_quality
+
+    # get solution matching:
+    # 984_1 984_1
+    solution_matching = collections.defaultdict(list)
     with open(os.path.join(folder, "mapping")) as f:
         for l in f:
-            a, b = l.strip().split()
-            if a == b:
-                correct.add((a, b))
-            else:
-                wrong.add((a, b))
+            pair_a, pair_b = l.strip().split()
+            g_a, c_a, g_b, c_b = map(int, pair_a.split("_") + pair_b.split("_"))
+            solution_matching[g_a].append((c_a, c_b))
 
+    # compare:
+    tp, fp, fn = parse_orthology_quality(solution_matching, correct_matching)
     return {"dcj_distance": obj, "duplications_a": duplications[1], "duplications_b": duplications[2],
-            "time": time, "gap": gap, "ortho_TP": len(correct), "ortho_FP": len(wrong)}
+            "time": time, "gap": gap, "ortho_TP": len(tp), "ortho_FP": len(fp), "ortho_FN": len(fn)}
 
 
 if __name__ == '__main__':

@@ -25,9 +25,9 @@ def build_correct_matching(genome_a, genome_b):
     return correct_matching
 
 
-def ortho_qual(solution_matching, correct_matching):
-    correct = set()
-    wrong = set()
+def parse_orthology_quality(solution_matching, correct_matching):
+    tp = set()
+    fp = set()
     for gene, pair_list in solution_matching.iteritems():
         if gene not in correct_matching:  # if it is not, it a single copy gene, skip;
             continue
@@ -36,28 +36,34 @@ def ortho_qual(solution_matching, correct_matching):
             if c_a not in correct_matching[gene] and c_b not in correct_matching[gene]:
                 continue
             if c_a == c_b and c_a in correct_matching[gene]:
-                correct.add((gene, c_a))
+                tp.add((gene, c_a, c_b))
                 correct_matching[gene].remove(c_a)
             else:
-                wrong.add((gene, c_a))
-    return correct, wrong
+                fp.add((gene, c_a, c_b))
+
+    fn = [(g, c_a, c_a) for g, copy_set in correct_matching.iteritems() for c_a in copy_set]
+    return tp, fp, fn
 
 
-def parse_assignment_quality(sol_file, genome_a, genome_b):
-    matching = collections.defaultdict(list)
+def parse_orthology_quality_coser(sol_file, genome_a, genome_b):
     # open genomes to get the correct matching:
     correct_matching = build_correct_matching(genome_a, genome_b)
+    # get solution matching:
+    sol_matching = collections.defaultdict(list)
     with open(sol_file) as f:
         for l in f:
             m = matching_regexp.match(l.strip())
             if m is not None:
                 gene_a, copy_a, gene_b, copy_b, val = m.groups()
                 if float(val) >= 0.9 and int(gene_a) > 0:
-                    matching[int(gene_a)].append((int(copy_a), int(copy_b)))
+                    sol_matching[int(gene_a)].append((int(copy_a), int(copy_b)))
 
-    correct, wrong = ortho_qual(matching, correct_matching)
-    return correct, wrong, correct_matching
+    tp, fp = ortho_qual(sol_matching, correct_matching)
+    fn = [(g, c_a, c_a) for g, copy_set in correct_matching.iteritems() for c_a in copy_set]
+    return tp, fp, fn
 
+
+# not_matched_count = sum([len(x) for x in not_matched.itervalues()])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
