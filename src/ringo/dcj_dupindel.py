@@ -147,7 +147,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
         else:
 
             z = n = c = 0
-            match_edges = collections.defaultdict(list)
+            solution_matching = collections.defaultdict(list)
             matching_regexp = re.compile("x_A(\d+)_(\d+)h,B(\d+)_(\d+)h")
             # get basic vars and matching:
             for v in model.getVars():
@@ -161,21 +161,21 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                     m = matching_regexp.match(v.varName)
                     if m is not None and v.x == 1:
                         g_a, c_a, g_b, c_b = map(int, m.groups())
-                        match_edges[g_a].append((c_a,c_b))
+                        solution_matching[g_a].append((c_a,c_b))
 
-            from parse_orthology import build_correct_matching, ortho_qual
+            from parse_orthology import build_correct_matching, parse_orthology_quality
             correct_matching = build_correct_matching(genome_a, genome_b)
-            correct, wrong = ortho_qual(match_edges, correct_matching)
+            tp, fp, fn = parse_orthology_quality(solution_matching, correct_matching)
 
             print "N: %d  cycles:%d (%d fixed, %d from opt)" % (n, z + c, c, z)
-            print "Orthology. TP:%d  FP:%d  FN:%d" % (len(correct), len(wrong), sum([len(x) for x in correct_matching.itervalues()]))
+            print "Orthology. TP:%d  FP:%d  FN:%d" % (len(tp), len(fp), len(fn))
             # print match_edges
             # Now, analyse the BP graph, for the incomplete matching model, to find AA-, BB- and AB- components:
             master_graph = nx.Graph()
             # fixed vars:
             # add matching edges of genes with single copy:
             # for (gene, copy_a), copy_j in match_edges.iteritems():
-            for gene, pair_list in match_edges.iteritems():
+            for gene, pair_list in solution_matching.iteritems():
                 for copy_a, copy_b in pair_list:
                     for ext in [Ext.HEAD, Ext.TAIL]:
                         master_graph.add_edge(("A", gene, copy_a, ext), ("B", gene, copy_b, ext))
