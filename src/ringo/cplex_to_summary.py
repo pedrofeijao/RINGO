@@ -235,8 +235,9 @@ if __name__ == '__main__':
         if param.coser:
             if os.path.exists(os.path.join(folder, "mapping")):
                 coser_result.update(parse_coser_sol(folder, correct_matching))
+                coser_result["ortho_TOTAL"] = n_assignments
                 coser_results[key].append(coser_result)
-            coser_results["ortho_TOTAL"] = n_assignments
+
 
     # output:
     # DCJDUP:
