@@ -16,7 +16,7 @@ from networkx.algorithms import connected_components
 from simulation import Simulation, EventType
 import ringo_config
 
-from parse_orthology import parse_assignment_quality
+from parse_orthology import build_correct_matching, parse_orthology_quality
 from coser_to_summary import parse_coser_sol
 
 time_regexp = re.compile('Solution time =\s+([\d\.]+)\s*sec.\s+Iterations')
@@ -151,6 +151,18 @@ def parse_nobal_ilp_sol(filename, genome_a, genome_b):
     return {"dcj_distance": obj, "rearrangements": rearr, "indels_a": indels["A"], "indels_b": indels["B"],
             "time": time, "gap": gap}
 
+def solution_matching_ilp(sol_file):
+    # get solution matching:
+    sol_matching = collections.defaultdict(list)
+    with open(sol_file) as f:
+        for l in f:
+            m = matching_regexp.match(l.strip())
+            if m is not None:
+                gene_a, copy_a, gene_b, copy_b, val = m.groups()
+                if float(val) >= 0.9 and int(gene_a) > 0:
+                    sol_matching[int(gene_a)].append((int(copy_a), int(copy_b)))
+    return sol_matching
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Creates a summary file from a list of folders for DCJdupindel simulations.")
@@ -208,18 +220,20 @@ if __name__ == '__main__':
             r = parse_nobal_ilp_sol(sol_file, genomes[0], genomes[1])
 
         result.update(r)
-        # result["file"] = os.path.basename(sol_file)  # .replace(".lp.sol", "")#.replace("extant_genomes.txt_", "")
         # Orthology:
-        # correct_assignment = build_gene_copy_assignment(genomes[0], genomes[1])
-        correct, wrong, not_matched = parse_assignment_quality(sol_file, genomes[0], genomes[1])
-        not_matched_count = sum([len(x) for x in not_matched.itervalues()])
-        result.update({"ortho_TP": len(correct), "ortho_FP": len(wrong), "ortho_FN": not_matched_count})
+        # open genomes to get the correct matching:
+        correct_matching = build_correct_matching(genomes[0], genomes[1])
+        # get solution matching:
+        solution_matching = solution_matching_ilp(sol_file)
+        # compare:
+        tp, fp, fn = parse_orthology_quality(solution_matching, correct_matching)
+        result.update({"ortho_TP": len(tp), "ortho_FP": len(fp), "ortho_FN": len(fn)})
 
         results[key].append(result)
         # COSER:
         if param.coser:
             if os.path.exists(os.path.join(folder, "mapping")):
-                coser_result.update(parse_coser_sol(folder))
+                coser_result.update(parse_coser_sol(folder, build_correct_matching(genomes[0], genomes[1])))
                 coser_results[key].append(coser_result)
 
     # output:
