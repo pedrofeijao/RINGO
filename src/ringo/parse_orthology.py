@@ -1,5 +1,6 @@
 #!/usr/bin/env python2
 import collections
+import copy
 import os
 
 import pyximport;
@@ -28,6 +29,7 @@ def build_correct_matching(genome_a, genome_b):
 def parse_orthology_quality(solution_matching, correct_matching):
     tp = set()
     fp = set()
+    not_matched = copy.deepcopy(correct_matching)
     for gene, pair_list in solution_matching.iteritems():
         if gene not in correct_matching:  # if it is not, it a single copy gene, skip;
             continue
@@ -37,33 +39,13 @@ def parse_orthology_quality(solution_matching, correct_matching):
                 continue
             if c_a == c_b and c_a in correct_matching[gene]:
                 tp.add((gene, c_a, c_b))
-                correct_matching[gene].remove(c_a)
+                not_matched[gene].remove(c_a)
             else:
                 fp.add((gene, c_a, c_b))
 
-    fn = [(g, c_a, c_a) for g, copy_set in correct_matching.iteritems() for c_a in copy_set]
+    fn = [(g, c_a, c_a) for g, copy_set in not_matched.iteritems() for c_a in copy_set]
     return tp, fp, fn
 
-
-def parse_orthology_quality_coser(sol_file, genome_a, genome_b):
-    # open genomes to get the correct matching:
-    correct_matching = build_correct_matching(genome_a, genome_b)
-    # get solution matching:
-    sol_matching = collections.defaultdict(list)
-    with open(sol_file) as f:
-        for l in f:
-            m = matching_regexp.match(l.strip())
-            if m is not None:
-                gene_a, copy_a, gene_b, copy_b, val = m.groups()
-                if float(val) >= 0.9 and int(gene_a) > 0:
-                    sol_matching[int(gene_a)].append((int(copy_a), int(copy_b)))
-
-    tp, fp = ortho_qual(sol_matching, correct_matching)
-    fn = [(g, c_a, c_a) for g, copy_set in correct_matching.iteritems() for c_a in copy_set]
-    return tp, fp, fn
-
-
-# not_matched_count = sum([len(x) for x in not_matched.itervalues()])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

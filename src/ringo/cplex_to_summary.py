@@ -176,7 +176,7 @@ if __name__ == '__main__':
     cfg = ringo_config.RingoConfig()
     sim_cols = ["dup_length", "dup_prob", "real_distance"]
     tree_events = ["%s_%s" % (g, event) for g in ["T1", "T2"] for event in EventType.all]
-    time_ortho = ["time", "gap", "ortho_TP", "ortho_FP", "ortho_FN"]
+    time_ortho = ["time", "gap", "ortho_TOTAL", "ortho_TP", "ortho_FP", "ortho_FN"]
 
     fields = sim_cols + tree_events + ["dcj_distance", "rearrangements", "indels_a", "indels_b"] + time_ortho
     coser_fields = sim_cols + tree_events + ["dcj_distance", "duplications_a", "duplications_b"] + time_ortho
@@ -227,14 +227,16 @@ if __name__ == '__main__':
         solution_matching = solution_matching_ilp(sol_file)
         # compare:
         tp, fp, fn = parse_orthology_quality(solution_matching, correct_matching)
-        result.update({"ortho_TP": len(tp), "ortho_FP": len(fp), "ortho_FN": len(fn)})
+        n_assignments = sum([len(x) for x in correct_matching.itervalues()])
+        result.update({"ortho_TOTAL": n_assignments, "ortho_TP": len(tp), "ortho_FP": len(fp), "ortho_FN": len(fn)})
 
         results[key].append(result)
         # COSER:
         if param.coser:
             if os.path.exists(os.path.join(folder, "mapping")):
-                coser_result.update(parse_coser_sol(folder, build_correct_matching(genomes[0], genomes[1])))
+                coser_result.update(parse_coser_sol(folder, correct_matching))
                 coser_results[key].append(coser_result)
+            coser_results["ortho_TOTAL"] = n_assignments
 
     # output:
     # DCJDUP:
