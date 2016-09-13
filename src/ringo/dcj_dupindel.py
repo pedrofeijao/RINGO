@@ -226,6 +226,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
         gene_copies["B"][gene] = {cn: CopyType.REAL for cn in gene_copies_b[gene]}
 
     # now complete the list with 'balancing' genes
+    bal_count = {"A":0, "B":0}
     for gene in all_genes:
         copy_a = len(gene_copies["A"][gene])
         copy_j = len(gene_copies["B"][gene])
@@ -237,10 +238,13 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
         if copy_a < copy_j:
             gene_copies["A"][gene].update({bal_copy: CopyType.BALANCING for bal_copy in
                                            xrange(max_copy_a + 1, max_copy_a + 1 + copy_j - copy_a)})
+            bal_count["A"] += 1
         if copy_j < copy_a:
             gene_copies["B"][gene].update({bal_copy: CopyType.BALANCING for bal_copy in
                                            xrange(max_copy_b + 1, max_copy_b + 1 + copy_a - copy_j)})
+            bal_count["B"] += 1
 
+    print "Balancing genes:A=%(A)d, B=%(B)d" % bal_count
     # define the y labels (vertex = genome,gene,copy,ext) -> integer 1..n
     y_label = define_y_label(gene_copies)
 
