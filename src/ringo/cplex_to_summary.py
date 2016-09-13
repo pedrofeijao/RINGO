@@ -47,7 +47,6 @@ def parse_log_file(logfile):
 
 
 def parse_ilp_sol(filename):
-
     G = nx.Graph()
     obj = 0
     edges = []
@@ -68,13 +67,11 @@ def parse_ilp_sol(filename):
                     # balancing edge:
                     G.add_edge((genome_1, gene_1, copy_1, ext_1), (genome_2, gene_2, copy_2, ext_2))
 
-
     # Find indels as connected components in A and B:
     indels = {"A": 0, "B": 0}
     for comp in connected_components(G):
         genome, gene, copy, ext = list(comp)[0]
         indels[genome] += 1
-
 
     # log file:
     gap, time = parse_log_file(filename.replace("sol", "log"))
@@ -145,10 +142,11 @@ def parse_nobal_ilp_sol(filename, genome_a, genome_b):
 
     # correct objective function, since each AB-component is counted as a full cycle in the ILP, but
     # should only by half-cycle.
-    obj += len(ab_components)/2
+    obj += len(ab_components) / 2
 
     return {"dcj_distance": obj, "dup_a": indels["A"], "dup_b": indels["B"],
             "time": time, "gap": gap}
+
 
 def solution_matching_ilp(sol_file):
     # get solution matching:
@@ -162,6 +160,7 @@ def solution_matching_ilp(sol_file):
                     sol_matching[int(gene_a)].append((int(copy_a), int(copy_b)))
     return sol_matching
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Creates a summary file from a list of folders for DCJdupindel simulations.")
@@ -173,9 +172,9 @@ if __name__ == '__main__':
     param = parser.parse_args()
     # Ringo_config:
     cfg = ringo_config.RingoConfig()
-    sim_cols = ["dup_length", "dup_prob", "real_distance"]
+    sim_cols = ["real_distance"] #["dup_length", "dup_prob"]
     tree_events = ["%s_%s" % (g, event) for g in ["T1", "T2"] for event in EventType.all]
-    time_ortho = ["time", "gap", "ortho_TOTAL", "ortho_TP", "ortho_FP", "ortho_FN"]
+    time_ortho = ["time", "gap", "ortho_TP", "ortho_FP", "ortho_FN"]
 
     fields = sim_cols + tree_events + ["dcj_distance", "dup_a", "dup_b"] + time_ortho + ["bal_A", "bal_B"]
     coser_fields = sim_cols + tree_events + ["dcj_distance", "dup_a", "dup_b"] + time_ortho
@@ -185,16 +184,20 @@ if __name__ == '__main__':
     for folder in param.folders:
         # sim data:
         sim = Simulation.open_folder(folder)
-        result = {"dup_length": "%d" % sim.sim_parameters.duplication_length,
-                  "dup_prob": "%.2f" % sim.sim_parameters.duplication_p, "folder": folder,
-                  "del_prob": "%.2f" % sim.sim_parameters.deletion_p,
-                  "real_distance": int(sim.sim_parameters.scale * sim.sim_parameters.num_genes)
+        p = sim.sim_parameters
+        result = {
+            # "dup_length": "%d" % sim.sim_parameters.duplication_length,
+            #       "dup_prob": "%.2f" % sim.sim_parameters.duplication_p, "folder": folder,
+            #       "del_prob": "%.2f" % sim.sim_parameters.deletion_p
                   }
-        key = "L%(dup_length)s_dup%(dup_prob)s_del%(del_prob)s" % result
+        # key = "L%(dup_length)s_dup%(dup_prob)s_del%(del_prob)s" % result
+        key = "L%(duplication_length)s_dup%(duplication_p)s_del%(deletion_p)s" % p.__dict__
         # tree events:
-        result.update(
-            {"%s_%s" % (g, event): sim.sim_tree.find_node_with_label(g).edge.events[event] for g in ["T1", "T2"] for
-             event in EventType.all})
+        tree_events = {"%s_%s" % (g, event): sim.sim_tree.find_node_with_label(g).edge.events[event] for g in
+                       ["T1", "T2"] for
+                       event in EventType.all}
+        result.update(tree_events)
+        result["real_distance"] = sum(map(int, tree_events.values()))
 
         # coser is the same until here:
         coser_result = dict(result)
@@ -250,6 +253,7 @@ if __name__ == '__main__':
                 coser_result.update(parse_coser_sol(folder, correct_matching))
                 coser_result["ortho_TOTAL"] = n_assignments
                 coser_results[key].append(coser_result)
+                coser_results[key].append(coser_result)
 
     # output:
     # DCJDUP:
@@ -259,12 +263,14 @@ if __name__ == '__main__':
     for key, result in results.iteritems():
         with open("%s_%s.txt" % (dcj_out, key), "w") as f:
             print >> f, "\t".join(fields)
-            for line in sorted(result, key=lambda r: (r['dup_length'], r["dup_prob"], r["real_distance"])):
+            # for line in sorted(result, key=lambda r: (r['dup_length'], r["dup_prob"], r["real_distance"])):
+            for line in sorted(result, key=lambda r: r["real_distance"]):
                 print >> f, "\t".join([str(line[field]) for field in fields])
     # COSER:
     if param.coser:
         for key, result in coser_results.iteritems():
             with open("coser_%s_%s.txt" % (param.out, key), "w") as f:
                 print >> f, "\t".join(coser_fields)
-                for line in sorted(result, key=lambda r: (r['dup_length'], r["dup_prob"], r["real_distance"])):
+                # for line in sorted(result, key=lambda r: (r['dup_length'], r["dup_prob"], int(r["real_distance"]))):
+                for line in sorted(result, key=lambda r: r["real_distance"]):
                     print >> f, "\t".join([str(line[field]) for field in coser_fields])
