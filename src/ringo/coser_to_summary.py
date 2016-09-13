@@ -53,7 +53,7 @@ def parse_coser_sol(folder, correct_matching):
 
     # compare:
     tp, fp, fn = parse_orthology_quality(solution_matching, correct_matching)
-    return {"dcj_distance": obj, "duplications_a": duplications[1], "duplications_b": duplications[2],
+    return {"dcj_distance": obj, "dup_a": duplications[1], "dup_b": duplications[2],
             "time": time, "gap": gap, "ortho_TP": len(tp), "ortho_FP": len(fp), "ortho_FN": len(fn)}
 
 
