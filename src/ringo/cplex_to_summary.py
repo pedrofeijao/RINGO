@@ -253,7 +253,6 @@ if __name__ == '__main__':
                 coser_result.update(parse_coser_sol(folder, correct_matching))
                 coser_result["ortho_TOTAL"] = n_assignments
                 coser_results[key].append(coser_result)
-                coser_results[key].append(coser_result)
 
     # output:
     # DCJDUP:
