@@ -19,7 +19,6 @@ def run_L_D_simulation(self, L, D):
     pre_duplications = int(0.45 * param.num_genes / L)
     post_duplications = int(0.05 * param.num_genes / L)
     post_duplications = [int(0.6 * post_duplications), int(1.4 * post_duplications)]
-    print post_duplications
     param.pre_duplications = pre_duplications
     current_copy_number = None  # will init at root
     deletion_length_range = xrange(1, param.indel_length + 1)
