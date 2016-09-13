@@ -16,8 +16,8 @@ def run_L_D_simulation(self, L, D):
     #
     param = self.sim_parameters
     # pre_dups (at root) and post_dups (at branches) to achieve 1.5 genes/family in average.
-    pre_duplications = int(0.3 * param.num_genes / L)
-    post_duplications = int(0.2 * param.num_genes / L)
+    pre_duplications = int(0.45 * param.num_genes / L)
+    post_duplications = int(0.05 * param.num_genes / L)
     param.pre_duplications = pre_duplications
     current_copy_number = None  # will init at root
     deletion_length_range = xrange(1, param.indel_length + 1)
