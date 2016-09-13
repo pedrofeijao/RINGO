@@ -18,6 +18,7 @@ import ringo_config
 
 from parse_orthology import build_correct_matching, parse_orthology_quality
 from coser_to_summary import parse_coser_sol
+from dcj_dupindel import build_gene_copies_dict, CopyType
 
 time_regexp = re.compile('Solution time =\s+([\d\.]+)\s*sec.\s+Iterations')
 gap_regexp = re.compile('Current MIP best bound.+gap.+\s([\d.]+)%')
@@ -78,8 +79,7 @@ def parse_ilp_sol(filename):
     # log file:
     gap, time = parse_log_file(filename.replace("sol", "log"))
 
-    rearr = obj - indels["A"] - indels["B"]
-    return {"dcj_distance": obj, "rearrangements": rearr, "indels_a": indels["A"], "indels_b": indels["B"],
+    return {"dcj_distance": obj, "dup_a": indels["A"], "dup_b": indels["B"],
             "time": time, "gap": gap}
 
 
@@ -147,8 +147,7 @@ def parse_nobal_ilp_sol(filename, genome_a, genome_b):
     # should only by half-cycle.
     obj += len(ab_components)/2
 
-    rearr = obj - indels["A"] - indels["B"]
-    return {"dcj_distance": obj, "rearrangements": rearr, "indels_a": indels["A"], "indels_b": indels["B"],
+    return {"dcj_distance": obj, "dup_a": indels["A"], "dup_b": indels["B"],
             "time": time, "gap": gap}
 
 def solution_matching_ilp(sol_file):
@@ -178,8 +177,8 @@ if __name__ == '__main__':
     tree_events = ["%s_%s" % (g, event) for g in ["T1", "T2"] for event in EventType.all]
     time_ortho = ["time", "gap", "ortho_TOTAL", "ortho_TP", "ortho_FP", "ortho_FN"]
 
-    fields = sim_cols + tree_events + ["dcj_distance", "rearrangements", "indels_a", "indels_b"] + time_ortho
-    coser_fields = sim_cols + tree_events + ["dcj_distance", "duplications_a", "duplications_b"] + time_ortho
+    fields = sim_cols + tree_events + ["dcj_distance", "dup_a", "dup_b"] + time_ortho + ["bal_A", "bal_B"]
+    coser_fields = sim_cols + tree_events + ["dcj_distance", "dup_a", "dup_b"] + time_ortho
 
     results = collections.defaultdict(list)
     coser_results = collections.defaultdict(list)
@@ -230,6 +229,20 @@ if __name__ == '__main__':
         n_assignments = sum([len(x) for x in correct_matching.itervalues()])
         result.update({"ortho_TOTAL": n_assignments, "ortho_TP": len(tp), "ortho_FP": len(fp), "ortho_FN": len(fn)})
 
+        # balancing genes:
+        # since the gene set might be different for each genome, find all genes:
+        all_genes = genomes[0].gene_set().union(genomes[1].gene_set())
+        # find all gene copies
+        gene_copies = build_gene_copies_dict(all_genes, genomes[0], genomes[1])
+        # count balancing genes:
+        bal = {
+            g: sum(
+                [len([c for c in gene_copies[g][gene].itervalues() if c == CopyType.BALANCING]) for gene in all_genes])
+            for g in ["A", "B"]}
+
+        result["bal_A"] = bal["A"]
+        result["bal_B"] = bal["B"]
+        # keep result
         results[key].append(result)
         # COSER:
         if param.coser:
@@ -237,7 +250,6 @@ if __name__ == '__main__':
                 coser_result.update(parse_coser_sol(folder, correct_matching))
                 coser_result["ortho_TOTAL"] = n_assignments
                 coser_results[key].append(coser_result)
-
 
     # output:
     # DCJDUP:

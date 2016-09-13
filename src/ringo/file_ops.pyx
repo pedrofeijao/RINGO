@@ -202,18 +202,28 @@ def write_genomes_copy_number_to_file(genomes, filename, write_chr_line=True):
                                      CIRCULAR_END_CHR if chromosome.circular else LINEAR_END_CHR))
 
 
-def open_coser_genome(file, name=None):
+def open_coser_genome(file, name=None, parse_copy_number=False):
     chromosomes = {}
     if name is None:
         name = os.path.basename(os.path.splitext(file)[0])
     genome = Genome(name)
+    gene_copy = {}
     with open(file) as f:
         for l in f:
             g_id, gene, chrom, circular = l.strip().split()
             if chrom not in chromosomes:
-                chromosomes[chrom] = Chromosome([], circular=True if circular == 2 else False)
+                chromosomes[chrom] = Chromosome([], copy_number=[], circular=True if circular == 2 else False)
                 genome.add_chromosome(chromosomes[chrom])
             chromosomes[chrom].gene_order.append(int(gene))
+            if parse_copy_number:
+                gene_i, copy_i = g_id.split("_")
+                chromosomes[chrom].copy_number.append(int(copy_i))
+            else:
+                gene = abs(int(gene))
+                if gene not in gene_copy:
+                    gene_copy[gene] = 1
+                chromosomes[chrom].copy_number.append(gene_copy[gene])
+                gene_copy[gene] += 1
     return genome
 
 

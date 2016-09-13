@@ -110,12 +110,37 @@ def fix_cycle_y_z(comp, y_label, y_fix, z_fix, vertices_to_remove):
     vertices_to_remove.extend(comp)
 
 
+def build_gene_copies_dict(all_genes, genome_a, genome_b):
+    # store the copy number for each 'real' gene in each genome:
+    gene_copies_a = genome_a.gene_copies()
+    gene_copies_b = genome_b.gene_copies()
+    gene_copies = {"A": {}, "B": {}}
+    for gene in all_genes:
+        gene_copies["A"][gene] = {cn: CopyType.REAL for cn in gene_copies_a[gene]}
+        gene_copies["B"][gene] = {cn: CopyType.REAL for cn in gene_copies_b[gene]}
+
+    # now complete the list with 'balancing' genes
+    for gene in all_genes:
+        copy_a = len(gene_copies["A"][gene])
+        copy_b = len(gene_copies["B"][gene])
+        # get the max copy number, or 0 if set is empty, to know which label is free for the newly added
+        # balancing copies;
+        max_copy_a = max([cn for cn, c_type in gene_copies["A"][gene].iteritems()] + [0])
+        max_copy_b = max([cn for cn, c_type in gene_copies["B"][gene].iteritems()] + [0])
+
+        if copy_a < copy_b:
+            gene_copies["A"][gene].update({bal_copy: CopyType.BALANCING for bal_copy in
+                                           xrange(max_copy_a + 1, max_copy_a + 1 + copy_b - copy_a)})
+        if copy_b < copy_a:
+            gene_copies["B"][gene].update({bal_copy: CopyType.BALANCING for bal_copy in
+                                           xrange(max_copy_b + 1, max_copy_b + 1 + copy_a - copy_b)})
+
+    return gene_copies
 ######################################################################
 # MAIN function
 ######################################################################
 
 def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=True, solve=False):
-
     def solve_ilp(timelimit=60):
         # import here, so only if actually solving we will need gurobi.
         from gurobipy import read, GRB
@@ -161,7 +186,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                     m = matching_regexp.match(v.varName)
                     if m is not None and v.x == 1:
                         g_a, c_a, g_b, c_b = map(int, m.groups())
-                        solution_matching[g_a].append((c_a,c_b))
+                        solution_matching[g_a].append((c_a, c_b))
 
             from parse_orthology import build_correct_matching, parse_orthology_quality
             correct_matching = build_correct_matching(genome_a, genome_b)
@@ -185,7 +210,6 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                 for (g_i, copy_a, e_i), (g_j, copy_j, e_j) in genome.adjacency_iter_with_copies():
                     master_graph.add_edge((genome_name, g_i, copy_a, e_i), (genome_name, g_j, copy_j, e_j))
 
-
             count = {"A": 0, "B": 0, "AB": 0}
             c = 0
             # print "C:", len([x for x in connected_components(master_graph)])
@@ -195,18 +219,17 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                     c += 1
                 else:
                     if len(degree_one) != 2:
-                        import ipdb; ipdb.set_trace()
+                        import ipdb;
+                        ipdb.set_trace()
                     if degree_one[0][0] == degree_one[1][0]:
                         count[degree_one[0][0]] += 1
                     else:
                         count["AB"] += 1
             print count
             if skip_balancing:
-                print "Corrected distance: %d" % (model.objVal + count["AB"]/2)
-
+                print "Corrected distance: %d" % (model.objVal + count["AB"] / 2)
 
         return model
-
 
     # copy genomes to possibly make some changes:
     genome_a = copy.deepcopy(genome_a)
@@ -216,35 +239,14 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
 
     # since the gene set might be different for each genome, find all genes:
     all_genes = genome_a.gene_set().union(genome_b.gene_set())
+    # find all gene copies
+    gene_copies = build_gene_copies_dict(all_genes, genome_a, genome_b)
+    # count balancing genes:
+    bal = {
+        g: sum([len([c for c in gene_copies[g][gene].itervalues() if c == CopyType.BALANCING]) for gene in all_genes])
+        for g in ["A", "B"]}
 
-    # store the copy number for each 'real' gene in each genome:
-    gene_copies_a = genome_a.gene_copies()
-    gene_copies_b = genome_b.gene_copies()
-    gene_copies = {"A": {}, "B": {}}
-    for gene in all_genes:
-        gene_copies["A"][gene] = {cn: CopyType.REAL for cn in gene_copies_a[gene]}
-        gene_copies["B"][gene] = {cn: CopyType.REAL for cn in gene_copies_b[gene]}
-
-    # now complete the list with 'balancing' genes
-    bal_count = {"A":0, "B":0}
-    for gene in all_genes:
-        copy_a = len(gene_copies["A"][gene])
-        copy_j = len(gene_copies["B"][gene])
-        # get the max copy number, or 0 if set is empty, to know which label is free for the newly added
-        # balancing copies;
-        max_copy_a = max([cn for cn, c_type in gene_copies["A"][gene].iteritems()] + [0])
-        max_copy_b = max([cn for cn, c_type in gene_copies["B"][gene].iteritems()] + [0])
-
-        if copy_a < copy_j:
-            gene_copies["A"][gene].update({bal_copy: CopyType.BALANCING for bal_copy in
-                                           xrange(max_copy_a + 1, max_copy_a + 1 + copy_j - copy_a)})
-            bal_count["A"] += 1
-        if copy_j < copy_a:
-            gene_copies["B"][gene].update({bal_copy: CopyType.BALANCING for bal_copy in
-                                           xrange(max_copy_b + 1, max_copy_b + 1 + copy_a - copy_j)})
-            bal_count["B"] += 1
-
-    print "Balancing genes:A=%(A)d, B=%(B)d" % bal_count
+    print "Balancing genes:A=%(A)d, B=%(B)d" % bal
     # define the y labels (vertex = genome,gene,copy,ext) -> integer 1..n
     y_label = define_y_label(gene_copies)
 
@@ -663,6 +665,7 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
         model = solve_ilp(timelimit=60)
         return model
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Generates and optionally solve an ILP for the DCJ duplication and indel distance.")
@@ -688,5 +691,5 @@ if __name__ == '__main__':
         g2 = file_ops.open_coser_genome(param.c[1])
         filename = "ilp"
     filename = "%s_%s_%s%s.lp" % (filename, g1.name, g2.name, "_nobal" if param.skip_balancing else "")
-    dcj_dupindel_ilp(g1, g2, filename, skip_balancing=param.skip_balancing, fix_vars=param.skip_fixing, solve=param.solve)
-
+    dcj_dupindel_ilp(g1, g2, filename, skip_balancing=param.skip_balancing, fix_vars=param.skip_fixing,
+                     solve=param.solve)
