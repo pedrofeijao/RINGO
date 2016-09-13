@@ -18,6 +18,8 @@ def run_L_D_simulation(self, L, D):
     # pre_dups (at root) and post_dups (at branches) to achieve 1.5 genes/family in average.
     pre_duplications = int(0.45 * param.num_genes / L)
     post_duplications = int(0.05 * param.num_genes / L)
+    post_duplications = [int(0.6 * post_duplications), int(1.4 * post_duplications)]
+    print post_duplications
     param.pre_duplications = pre_duplications
     current_copy_number = None  # will init at root
     deletion_length_range = xrange(1, param.indel_length + 1)
@@ -56,10 +58,11 @@ def run_L_D_simulation(self, L, D):
 
             current_genome = ev_node.parent_node.value.clone(ev_node.label)
             ev_node.value = current_genome
-            ev_node.edge.length = D + post_duplications
+            pd = post_duplications.pop()
+            ev_node.edge.length = D + pd
 
             # events
-            events = [EventType.DUPLICATION] * post_duplications + [EventType.REARRANGEMENT] * D
+            events = [EventType.DUPLICATION] * pd + [EventType.REARRANGEMENT] * D
 
             ev_node.edge.events = {ev: 0 for ev in EventType.all}
             random.shuffle(events)
