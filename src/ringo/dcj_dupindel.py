@@ -735,6 +735,8 @@ if __name__ == '__main__':
                         help="Do not try to fix variables.")
     parser.add_argument("-t", "--timelimit", type=int, default=60,
                         help="Time limit in seconds for the solver. (default 60 secs.)")
+    parser.add_argument("-o", "--fileout", type=str,
+                        help="Name for the ILP file.")
     input_type = parser.add_mutually_exclusive_group(required=True)
     input_type.add_argument("-g", type=str, nargs=3, help="Genomes file, idx 1 and 2 of genomes (0-indexed).")
     input_type.add_argument("-c", type=str, nargs=2, help="Two coser files.")
@@ -749,6 +751,10 @@ if __name__ == '__main__':
         g1 = file_ops.open_coser_genome(param.c[0])
         g2 = file_ops.open_coser_genome(param.c[1])
         filename = "ilp"
-    filename = "%s_%s_%s%s.lp" % (filename, g1.name, g2.name, "_nobal" if param.skip_balancing else "")
+    if param.fileout is None:
+        filename = "%s_%s_%s%s.lp" % (filename, g1.name, g2.name, "_nobal" if param.skip_balancing else "")
+    else:
+        filename = param.fileout
+
     dcj_dupindel_ilp(g1, g2, filename, skip_balancing=param.skip_balancing, fix_vars=param.skip_fixing,
                      solve=param.solve, all_vs_all=param.all_vs_all)
