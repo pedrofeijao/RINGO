@@ -136,6 +136,56 @@ def build_gene_copies_dict(all_genes, genome_a, genome_b):
                                            xrange(max_copy_b + 1, max_copy_b + 1 + copy_a - copy_b)})
 
     return gene_copies
+
+
+def plot_bp(filename, master_graph, gene_copies, fixed_matching):
+    # add isolated vertices (balancing extremities that are not fixed already)
+    for genome_i in ["A", "B"]:
+        for gene_i, copy_i, ext_i in balancing_extremities(gene_copies[genome_i]):
+            if (gene_i, copy_i) not in fixed_matching:
+                master_graph.add_node((genome_i, gene_i, copy_i, ext_i))
+    # Relabel nodes to make it easier to read:
+    mapping = {}
+    normal = []
+    balancing = []
+    be = {genome_i: list(balancing_extremities(gene_copies[genome_i])) for genome_i in ["A", "B"]}
+    for v in master_graph.nodes():
+        genome_i, gene_i, copy_i, ext_i = v
+        mapping[v] = "$%s%s_{(%s)}^%s$" % v
+        if (gene_i, copy_i, ext_i) in be[genome_i]:
+            balancing.append(mapping[v])
+        else:
+            normal.append(mapping[v])
+    master_graph = nx.relabel_nodes(master_graph, mapping)
+
+    # Graphviz position:
+    # pos = nx.nx_agraph.graphviz_layout(master_graph, prog="fdp")
+
+    # custom position:
+    x_pos = 0
+    y_pos = {"A": 1, "B": 0}
+    pos = {}
+    for comp in sorted(connected_components(master_graph), key=lambda c: (-len(c), min(c))):
+        last_v = None
+        for v in sort_component(master_graph, comp, fmt=False):
+            if last_v == v[1]:
+                x_pos += 1
+            last_v = v[1]
+            pos[v] = (x_pos, y_pos[v[1]])
+        x_pos += 1
+        if x_pos > 7:
+            x_pos = 0
+            y_pos["A"] -= 2
+            y_pos["B"] -= 2
+
+    # draw and save:
+    for nodelist, color in [(normal, "lightgray"), (balancing, "lightblue")]:
+        nx.draw(master_graph, pos, font_size=5, nodelist=nodelist, node_color=color, linewidths=0.1, width=0.5,
+                node_size=400,
+                with_labels=True)
+    plt.savefig(filename, bbox_inches='tight')
+
+
 ######################################################################
 # MAIN function
 ######################################################################
@@ -401,53 +451,22 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
     # DRAW:
     draw_bp = False
     if draw_bp:
-        # add isolated vertices (balancing extremities that are not fixed already)
-        for genome_i in ["A", "B"]:
-            for gene_i, copy_i, ext_i in balancing_extremities(gene_copies[genome_i]):
-                if (gene_i, copy_i) not in fixed_matching:
-                    master_graph.add_node((genome_i, gene_i, copy_i, ext_i))
-        # Relabel nodes to make it easier to read:
-        mapping = {}
-        normal = []
-        balancing = []
-        be = {genome_i: list(balancing_extremities(gene_copies[genome_i])) for genome_i in ["A", "B"]}
-        for v in master_graph.nodes():
-            genome_i, gene_i, copy_i, ext_i = v
-            mapping[v] = "$%s%s_{(%s)}^%s$" % v
-            if (gene_i, copy_i, ext_i) in be[genome_i]:
-                balancing.append(mapping[v])
-            else:
-                normal.append(mapping[v])
-        master_graph = nx.relabel_nodes(master_graph, mapping)
+        plot_bp('graph.pdf')
 
-        # Graphviz position:
-        # pos = nx.nx_agraph.graphviz_layout(master_graph, prog="fdp")
+    # all fixed, generate ILP
 
-        # custom position:
-        x_pos = 0
-        y_pos = {"A": 1, "B": 0}
-        pos = {}
-        for comp in sorted(connected_components(master_graph), key=lambda c: (-len(c), min(c))):
-            last_v = None
-            for v in sort_component(master_graph, comp, fmt=False):
-                if last_v == v[1]:
-                    x_pos += 1
-                last_v = v[1]
-                pos[v] = (x_pos, y_pos[v[1]])
-            x_pos += 1
-            if x_pos > 7:
-                x_pos = 0
-                y_pos["A"] -= 2
-                y_pos["B"] -= 2
+    # to make it easier to find the matching edges, specially when limiting edges from balancing genes,
+    # I will build a gene connections graph;
+    gene_connection = nx.DiGraph()  # make it directed, so the vertex of A is always 1st on the edge tuple.
+    for gene in possible_matching.iterkeys():
+        set_a = possible_matching[gene]["A"]
+        set_b = possible_matching[gene]["B"]
+        # All vs all model:
+        for copy_a in set_a:
+            for copy_b in set_b:
+                gene_connection.add_edge(("A", gene, copy_a), ("B", gene, copy_b))
 
-        # draw and save:
-        for nodelist, color in [(normal, "lightgray"), (balancing, "lightblue")]:
-            nx.draw(master_graph, pos, font_size=5, nodelist=nodelist, node_color=color, linewidths=0.1, width=0.5,
-                    node_size=400,
-                    with_labels=True)
-        plt.savefig('graph.pdf', bbox_inches='tight')
-
-    # all fixed, generate ILP:
+    # Start building constraints:
     constraints = []
 
     # consistency and matching 1-to-1
@@ -461,26 +480,25 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
 
     # HEAD TAIL consistency:
     constraints.append("\ Head/Tail consistency:")
-    for gene in sorted(possible_matching):
-        set_a = possible_matching[gene]["A"]
-        set_b = possible_matching[gene]["B"]
-        for copy_a in set_a:
-            for copy_b in set_b:
-                constraints.append("%s - %s = 0" % (
-                    matching_edge_name(gene, copy_a, copy_b, Ext.TAIL),
-                    matching_edge_name(gene, copy_a, copy_b, Ext.HEAD)))
+    for (_, gene_a, copy_a), (_, gene_b, copy_b) in gene_connection.edges_iter():
+        constraints.append("%s - %s = 0" % (
+            matching_edge_name(gene_a, copy_a, copy_b, Ext.TAIL),
+            matching_edge_name(gene_a, copy_a, copy_b, Ext.HEAD)))
 
-    # 1 Matching per node:
+    # 1 Matching per node :
     constraints.append("\ Degree 1 per node (Matching):")
-    for gene in sorted(possible_matching):
-        set_a = possible_matching[gene]["A"]
-        set_b = possible_matching[gene]["B"]
-        for copy_a in set_a:
-            constraints.append(
-                " + ".join([matching_edge_name(gene, copy_a, copy_b, Ext.TAIL) for copy_b in set_b]) + " = 1")
-        for copy_b in set_b:
-            constraints.append(
-                " + ".join([matching_edge_name(gene, copy_a, copy_b, Ext.TAIL) for copy_a in set_a]) + " = 1")
+    # for all vertices:
+    for v in gene_connection.nodes_iter():
+        # find the incident edges:
+        if v[0] == "A":
+            edges = gene_connection.out_edges_iter
+        else:
+            edges = gene_connection.in_edges_iter
+        incident = [matching_edge_name(gene_a, copy_a, copy_b, Ext.TAIL) for
+                    (_, gene_a, copy_a), (_, gene_b, copy_b) in edges(v)]
+        # sum of incidents is 1:
+        constraints.append("\ node: %s   Incident:%s" % (v, str(incident)))
+        constraints.append("%s = 1" % (" + ".join(incident)))
 
     if not skip_balancing:
         constraints.append("\ Balancing:")
@@ -503,13 +521,11 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
                                     if
                                     (gene_i, copy_a, ext_i) != (gene_j, copy_j, ext_j)]) + " = 1")
 
-    # import ipdb; ipdb.set_trace()
 
     constraints.append("\ Labelling")
+    # for each adjacency, fix the label of adjacent genes:
 
-    #
-    # for each adjacency, fix label:
-    constraints.append("\\ Adjacency have the same label:")
+    constraints.append("\\ Adjacent nodes have the same label:")
     for genome, genome_name in [(genome_a, "A"), (genome_b, "B")]:
         for (g_i, copy_a, ext_i), (g_j, copy_j, ext_j) in genome.adjacency_iter_with_copies():
             v_i = genome_name, g_i, copy_a, ext_i
@@ -520,7 +536,10 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
             # if the edge is 0 for sure, also skip:
             constraints.append("y_%s - y_%s = 0 \\ %s <-> %s " % (y_label[v_i], y_label[v_j], v_i, v_j))
     #
-    constraints.append("\\ Matching edges with the same label:")
+    constraints.append("\\ Matching extremities have the same label:")
+
+    # if extremities are matched, but I don't know the y_i (cycle was not closed in the fixing phase),
+    # then I know that the y_i's of these extremities are equal:
     constraints.append("\\ Fixed matching without fixed y_i:")
     for (gene, copy_a) in sorted(fixed_matching):
         copy_j = fixed_matching[(gene, copy_a)]
@@ -531,21 +550,19 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
             if y_i not in y_fix and y_j not in y_fix:
                 constraints.append("y_%s - y_%s = 0 " % (y_i, y_j))
 
+    # for the "open" matching, for each edge I add the "y fixing" restrictions, that force the y_i's
+    # to be equal whenever the edge variable is set to 1.
     constraints.append("\\ Open matching:")
-    for gene in sorted(possible_matching):
-        set_a = possible_matching[gene]["A"]
-        set_b = possible_matching[gene]["B"]
+    for (_, gene_a, copy_a), (_, gene_b, copy_b) in gene_connection.edges_iter():
         for ext in [Ext.HEAD, Ext.TAIL]:
-            for copy_a in set_a:
-                y_a = y_label[("A", gene, copy_a, ext)]
-                for copy_b in set_b:
-                    y_b = y_label[("B", gene, copy_b, ext)]
-                    constraints.append(
-                        "y_%s - y_%s + %s %s <= %d" % (
-                            y_a, y_b, y_a, matching_edge_name(gene, copy_a, copy_b, ext), y_a))
-                    constraints.append(
-                        "y_%s - y_%s + %s %s <= %d" % (
-                            y_b, y_a, y_b, matching_edge_name(gene, copy_a, copy_b, ext), y_b))
+            y_a = y_label[("A", gene_a, copy_a, ext)]
+            y_b = y_label[("B", gene_b, copy_b, ext)]
+            constraints.append(
+                "y_%s - y_%s + %s %s <= %d" % (
+                    y_a, y_b, y_a, matching_edge_name(gene, copy_a, copy_b, ext), y_a))
+            constraints.append(
+                "y_%s - y_%s + %s %s <= %d" % (
+                    y_b, y_a, y_b, matching_edge_name(gene, copy_a, copy_b, ext), y_b))
 
     if not skip_balancing:
         constraints.append("\\ Balancing edges have same label:")
@@ -572,10 +589,6 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
     constraints.append("\\ Z variables")
     for vertex, i in sorted(y_label.items(), key=operator.itemgetter(1)):
         if vertex[0] == "A":
-            # if i in z_fix and z_fix[i] == 0:
-            #     continue
-            # if i in z_fix and z_fix[i] == 1:
-            #     constraints.append("z_%s = 1" % i)
             if i not in z_fix:
                 constraints.append("%d z_%s - y_%s <= 0" % (i, i, i))
     #
@@ -596,29 +609,19 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
     binary = []
     #
     # # matching edges
-    # matching edges, skipping fixed pairs.
-    matching = ["\ match"]
-    matching.append("\ Fixed matching:")
-    count_fixed_matching = 0
-    count_open_matching = 0
+    matching = ["\ Fixed matching:"]
     for (gene, copy_a), copy_b in fixed_matching.iteritems():
-        count_fixed_matching += 2
         matching.append(matching_edge_name(gene, copy_a, copy_b, Ext.TAIL))
         matching.append(matching_edge_name(gene, copy_a, copy_b, Ext.HEAD))
-    matching.append("\ Open matching:")
-    for gene in sorted(possible_matching):
-        set_a = possible_matching[gene]["A"]
-        set_b = possible_matching[gene]["B"]
-        for copy_a in set_a:
-            for copy_b in set_b:
-                count_open_matching += 2
-                matching.append(matching_edge_name(gene, copy_a, copy_b, Ext.TAIL))
-                matching.append(matching_edge_name(gene, copy_a, copy_b, Ext.HEAD))
 
-    print "%d open matching edges" % count_open_matching
-    print "%d fixed matching edges" % count_fixed_matching
+    matching.append("\ Open matching:")
+    for (_, gene_a, copy_a), (_, gene_b, copy_b) in gene_connection.edges_iter():
+        for ext in [Ext.HEAD, Ext.TAIL]:
+            matching.append(matching_edge_name(gene_a, copy_a, copy_b, ext))
+
+    print "%d fixed matching edges" % (len(fixed_matching) * 2)
+    print "%d open matching edges" % (len(gene_connection.edges()) * 2)
     binary.extend(matching)
-    #
     if not skip_balancing:
         # balancing edges:
         balancing_edges = [balancing_edge_name(genome, gene_i, copy_a, ext_i, gene_j, copy_j, ext_j) for
