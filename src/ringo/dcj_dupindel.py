@@ -558,10 +558,10 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
             y_b = y_label[("B", gene_b, copy_b, ext)]
             constraints.append(
                 "y_%s - y_%s + %s %s <= %d" % (
-                    y_a, y_b, y_a, matching_edge_name(gene, copy_a, copy_b, ext), y_a))
+                    y_a, y_b, y_a, matching_edge_name(gene_a, copy_a, copy_b, ext), y_a))
             constraints.append(
                 "y_%s - y_%s + %s %s <= %d" % (
-                    y_b, y_a, y_b, matching_edge_name(gene, copy_a, copy_b, ext), y_b))
+                    y_b, y_a, y_b, matching_edge_name(gene_a, copy_a, copy_b, ext), y_b))
 
     if not skip_balancing:
         constraints.append("\\ Balancing edges have same label:")
