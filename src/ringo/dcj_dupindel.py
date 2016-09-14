@@ -497,7 +497,6 @@ def dcj_dupindel_ilp(genome_a, genome_b, output, skip_balancing=False, fix_vars=
         incident = [matching_edge_name(gene_a, copy_a, copy_b, Ext.TAIL) for
                     (_, gene_a, copy_a), (_, gene_b, copy_b) in edges(v)]
         # sum of incidents is 1:
-        constraints.append("\ node: %s   Incident:%s" % (v, str(incident)))
         constraints.append("%s = 1" % (" + ".join(incident)))
 
     if not skip_balancing:
