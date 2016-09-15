@@ -80,13 +80,8 @@ def parse_ilp_sol(filename):
             "time": time, "gap": gap}
 
 
-def parse_nobal_ilp_sol(filename, genome_a, genome_b):
-    # build the master graph with matching and adjacency edges:
-
-    # 1st add capping genes:
-    add_capping_genes(genome_a, genome_b)
-
-    master_graph = nx.Graph()
+def obj_and_matching_from_sol(filename):
+    edges = []
     obj = 0
     with open(filename) as f:
         for l in f:
@@ -98,8 +93,23 @@ def parse_nobal_ilp_sol(filename, genome_a, genome_b):
                 if float(m.group(5)) > 0.9:
                     # add matching edge:
                     g_a, c_a, g_b, c_b = map(int, m.groups()[:4])
-                    master_graph.add_edge(("A", g_a, c_a, Ext.HEAD), ("B", g_b, c_b, Ext.HEAD))
-                    master_graph.add_edge(("A", g_a, c_a, Ext.TAIL), ("B", g_b, c_b, Ext.TAIL))
+                    edges.append((g_a, c_a, c_b))
+    return obj, edges
+
+
+def parse_nobal_ilp_sol(filename, genome_a, genome_b):
+    # build the master graph with matching and adjacency edges:
+
+    # 1st add capping genes:
+    add_capping_genes(genome_a, genome_b)
+
+    master_graph = nx.Graph()
+    # matching edges:
+    obj, edges = obj_and_matching_from_sol(filename)
+    for gene, c_a, c_b in edges:
+        master_graph.add_edge(("A", gene, c_a, Ext.HEAD), ("B", gene, c_b, Ext.HEAD))
+        master_graph.add_edge(("A", gene, c_a, Ext.TAIL), ("B", gene, c_b, Ext.TAIL))
+
     # adjacency edges:
     for genome, genome_name in [(genome_a, "A"), (genome_b, "B")]:
         for (g_i, copy_a, e_i), (g_j, copy_b, e_j) in genome.adjacency_iter_with_copies():
@@ -139,7 +149,6 @@ def parse_nobal_ilp_sol(filename, genome_a, genome_b):
 
     # log file:
     gap, time = parse_log_file(filename.replace("sol", "log"))
-
     # correct objective function, since each AB-component is counted as a full cycle in the ILP, but
     # should only by half-cycle.
     obj += len(ab_components) / 2
@@ -172,7 +181,7 @@ if __name__ == '__main__':
     param = parser.parse_args()
     # Ringo_config:
     cfg = ringo_config.RingoConfig()
-    sim_cols = ["real_distance"] #["dup_length", "dup_prob"]
+    sim_cols = ["real_distance"]  # ["dup_length", "dup_prob"]
     tree_events = ["%s_%s" % (g, event) for g in ["T1", "T2"] for event in EventType.all]
     time_ortho = ["time", "gap", "ortho_TP", "ortho_FP", "ortho_FN"]
 
@@ -189,8 +198,7 @@ if __name__ == '__main__':
             # "dup_length": "%d" % sim.sim_parameters.duplication_length,
             #       "dup_prob": "%.2f" % sim.sim_parameters.duplication_p, "folder": folder,
             #       "del_prob": "%.2f" % sim.sim_parameters.deletion_p
-                  }
-        # key = "L%(dup_length)s_dup%(dup_prob)s_del%(del_prob)s" % result
+        }
         key = "L%(duplication_length)s_dup%(duplication_p)s_del%(deletion_p)s" % p.__dict__
         # tree events:
         tree_events = {"%s_%s" % (g, event): sim.sim_tree.find_node_with_label(g).edge.events[event] for g in
@@ -204,6 +212,7 @@ if __name__ == '__main__':
 
         # distance/rearrangement results:
         genomes = file_ops.open_genomes_with_copy_number(os.path.join(folder, cfg.sim_extant_genomes()))
+        root = file_ops.open_genomes_with_copy_number(os.path.join(folder, cfg.sim_ancestral_genomes()))[0]
 
         # if it has balancing edges, we can find the indels by adding the bal edges and the "gene" edges
         # and each connected component is a circular chromosome in the completion.
@@ -224,7 +233,15 @@ if __name__ == '__main__':
         result.update(r)
         # Orthology:
         # open genomes to get the correct matching:
-        correct_matching = build_correct_matching(genomes[0], genomes[1])
+        # correct_matching = build_correct_matching(genomes[0], genomes[1])
+        # UPDATE: get parent node genes, these are the orthologs:
+
+        correct_matching = collections.defaultdict(set)
+        for chrom in root.chromosomes:
+            for gene, cn in zip(chrom.gene_order, chrom.copy_number):
+                correct_matching[abs(gene)].add(cn)
+        correct_matching = {gene: copies for gene, copies in correct_matching.iteritems() if len(copies) > 1}
+        #
         # get solution matching:
         solution_matching = solution_matching_ilp(sol_file)
         # compare:
