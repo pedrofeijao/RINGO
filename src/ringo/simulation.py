@@ -333,7 +333,7 @@ class Simulation:
             leaf_cn = cfg.sim_extant_genomes() + cfg.copy_number_file_extension()
             file_ops.write_genomes_copy_number_to_file(self.extant_genomes, os.path.join(output, leaf_cn))
             ancestral_cn = cfg.sim_ancestral_genomes() + cfg.copy_number_file_extension()
-            file_ops.write_genomes_to_file(self.ancestral_genomes, os.path.join(output, ancestral_cn))
+            file_ops.write_genomes_copy_number_to_file(self.ancestral_genomes, os.path.join(output, ancestral_cn))
 
         # Software-specific files:
         # MLGO, and maybe others, doesn't like the "#" lines; output a 'simple' version:
