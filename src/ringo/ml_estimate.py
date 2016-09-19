@@ -125,7 +125,8 @@ def sort_cycle_with_one_freeze(n):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Finds the ML estimate for the DCJ distance between 2 genomes.")
-    parser.add_argument("-g", type=str, nargs=3, help="Genomes file, idx 1 and 2 of genomes (0-indexed).")
+    parser.add_argument("-g", type=str, nargs='+', help="Genomes file(s)")
+    parser.add_argument("-i", type=int, nargs=2, default=[0, 1], help="Idx of the genomes")
     param = parser.parse_args()
 
     # n = 100
@@ -135,44 +136,45 @@ if __name__ == '__main__':
     # print ",".join(map(str, [(i,n_scenarios((i,), i)) for i in range(30, 31)]))
     # print ",".join(map(str, [ (n ,sort_cycle_with_one_freeze(n)) for n in range(30, 31)]))
     # sys.exit()
-    filename, n1, n2 = param.g
-    genomes = file_ops.open_genome_file(filename, as_list=True)
-    g1 = genomes[int(n1)]
-    g2 = genomes[int(n2)]
+    n1, n2 = param.i
+    for filename in param.g:
+        genomes = file_ops.open_genome_file(filename, as_list=True)
+        g1 = genomes[int(n1)]
+        g2 = genomes[int(n2)]
 
-    bp = BPGraph(g1, g2)
-    n = len(bp.common_AB)
-    c = len(bp.type_dict[CType.CYCLE])
-    cycle_distribution = tuple(sorted([len(x) / 2 for x in bp.type_dict[CType.CYCLE]]))
-    d = n - c
-    x = []
-    y = []
-    last_step = 0
-    down = 0
-    max_p = 0
-    max_k = 0
-    print "Distance:%d" % d
+        bp = BPGraph(g1, g2)
+        n = len(bp.common_AB)
+        c = len(bp.type_dict[CType.CYCLE])
+        cycle_distribution = tuple(sorted([len(x) / 2 for x in bp.type_dict[CType.CYCLE]]))
+        d = n - c
+        x = []
+        y = []
+        last_step = 0
+        down = 0
+        max_p = 0
+        max_k = 0
+        print "Distance:%d" % d
 
-    for i in range(4*n):
-        prob = probability(n, cycle_distribution, d + i)
-        print "Steps:%d P:%e" % (d + i, prob)
-        x.append(d + i)
-        y.append(prob)
-        if prob < last_step:
-            down += 1
-            if down == 2:
-                break
-        else:
-            down = 0
-        if max_p < prob:
-            max_p = prob
-            max_k = i + d
-        last_step = prob
+        for i in range(4*n):
+            prob = probability(n, cycle_distribution, d + i)
+            print "Steps:%d P:%e" % (d + i, prob)
+            x.append(d + i)
+            y.append(prob)
+            if prob < last_step:
+                down += 1
+                if down == 2:
+                    break
+            else:
+                down = 0
+            if max_p < prob:
+                max_p = prob
+                max_k = i + d
+            last_step = prob
 
-    plt.plot(x, y, 'o-')
-    plt.savefig(os.path.join(os.path.dirname(filename), 'ml.pdf'), bbox_inches='tight')
-    print "Max:", max_k
-    # save results:
-    with open(filename+".ml", "w") as f:
-        print >> f, "DCJ\tML"
-        print >> f, "%d\t%d" % (d, max_k)
+        plt.plot(x, y, 'o-')
+        plt.savefig(os.path.join(os.path.dirname(filename), 'ml.pdf'), bbox_inches='tight')
+        print "Max:", max_k
+        # save results:
+        with open(filename+".ml", "w") as f:
+            print >> f, "DCJ\tML"
+            print >> f, "%d\t%d" % (d, max_k)
