@@ -16,7 +16,10 @@ from operator import mul
 import itertools
 from decimal import Decimal
 import random
+import matplotlib
+matplotlib.use('Agg')  # Force matplotlib to not use any Xwindows backend.
 import matplotlib.pyplot as plt
+
 
 
 def probability(n, cycle_dist, st):
