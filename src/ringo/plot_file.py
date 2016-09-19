@@ -4,7 +4,11 @@ import argparse
 import pyximport;
 
 pyximport.install()
+
+import matplotlib
+matplotlib.use('Agg')  # Force matplotlib to not use any Xwindows backend.
 import matplotlib.pyplot as plt
+
 import numpy as np
 
 if __name__ == '__main__':
