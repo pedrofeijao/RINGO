@@ -207,14 +207,17 @@ def open_coser_genome(file, name=None, parse_copy_number=False):
     if name is None:
         name = os.path.basename(os.path.splitext(file)[0])
     genome = Genome(name)
+    genome.gene_id = {}
     gene_copy = {}
     with open(file) as f:
         for l in f:
             g_id, gene, chrom, circular = l.strip().split()
             if chrom not in chromosomes:
                 chromosomes[chrom] = Chromosome([], copy_number=[], circular=True if circular == 2 else False)
+
                 genome.add_chromosome(chromosomes[chrom])
             chromosomes[chrom].gene_order.append(int(gene))
+
             if parse_copy_number:
                 gene_i, copy_i = g_id.split("_")
                 chromosomes[chrom].copy_number.append(int(copy_i))
@@ -222,8 +225,10 @@ def open_coser_genome(file, name=None, parse_copy_number=False):
                 gene = abs(int(gene))
                 if gene not in gene_copy:
                     gene_copy[gene] = 1
-                chromosomes[chrom].copy_number.append(gene_copy[gene])
+                copy_i = gene_copy[gene]
+                chromosomes[chrom].copy_number.append(copy_i)
                 gene_copy[gene] += 1
+            genome.gene_id[(gene, copy_i)] = g_id
     return genome
 
 
