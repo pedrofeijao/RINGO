@@ -141,6 +141,7 @@ if __name__ == '__main__':
     parser.add_argument("-i", type=int, nargs=2, default=[0, 1], help="Idx of the genomes")
     param = parser.parse_args()
 
+
     # n = 100
     # print n_scenarios((n,), n)
     # print sort_cycle_with_one_freeze(n)
@@ -158,6 +159,7 @@ if __name__ == '__main__':
         n = len(bp.common_AB)
         c = len(bp.type_dict[CType.CYCLE])
         cycle_distribution = tuple(sorted([len(x) / 2 for x in bp.type_dict[CType.CYCLE]]))
+        # cycle_distribution = tuple([len(x) / 2 for x in bp.type_dict[CType.CYCLE]])
         d = n - c
         x = []
         y = []
@@ -169,6 +171,14 @@ if __name__ == '__main__':
         est_DCJ = expected_dcj_distance(g1,g2)
         print "Distance:%d" % d,
         print " Estimate: %.1f" % est_DCJ
+
+        # if there is no common adjacency, estimate goes to infinity, also in the DCJ estimate;
+        if all([c > 1 for c in cycle_distribution]):
+            # cheat and build a new one, by randomly picking an element and then removing a cycle from it;
+            cycle_distribution = list(cycle_distribution)
+            random.shuffle(cycle_distribution)
+            cycle = cycle_distribution.pop()
+            cycle_distribution = tuple(sorted([1, cycle - 1] + cycle_distribution))
         for i in range(2*n):
             prob = probability(n, cycle_distribution, d + i)
             print >> sys.stderr, "Steps:%d P:%e" % (d + i, prob)
