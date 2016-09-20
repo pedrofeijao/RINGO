@@ -17,7 +17,7 @@ if __name__ == '__main__':
     parser.add_argument("-r", type=int, default=20, help="Number of repeats")
     param = parser.parse_args()
 
-    data = {"DCJ": [], "ML": [], "eDCJ": [], "Avg": [], 'step': []}
+    data = {"DCJ": [], "ML": [], "eDCJ": [], 'Real Distance': []}
     step_range = range(param.s, param.m, param.s)
     for step in step_range:
 
@@ -34,16 +34,12 @@ if __name__ == '__main__':
                 data["DCJ"].append(dcj - step)
                 data["ML"].append(ml - step)
                 data["eDCJ"].append(est - step)
-                data["Avg"].append((est+ml)/2 - step)
-                data["step"].append(step)
-                # data["dcj"].append(dcj_rep_data)
-                # data["ml"].append(ml_rep_data)
-                # data["est"].append(est_rep_data)
+                data["Real Distance"].append(step)
 
     # PANDA:
     df = pd.DataFrame.from_dict(data)
-    # pd.options.display.mpl_style = 'default'
-    # import ipdb; ipdb.set_trace()
-    df.boxplot(by='step')
+    df.boxplot(by='Real Distance')
+    fig = matplotlib.pyplot.gcf()
+    fig.set_size_inches(16, 10)
     plt.savefig('rw_%s_results.pdf' % param.n, bbox_inches='tight')
 
