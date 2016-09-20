@@ -1,10 +1,7 @@
 #!/usr/bin/env python2
 import argparse
 import collections
-
-import math
 import os
-
 import pyximport;
 import sys
 
@@ -20,6 +17,18 @@ import matplotlib
 matplotlib.use('Agg')  # Force matplotlib to not use any Xwindows backend.
 import matplotlib.pyplot as plt
 
+
+def expected_dcj_distance(genome1, genome2, n=0):
+    a = len(genome1.adjacency_set())
+    a2 = len(genome2.adjacency_set())
+    BP = a - len(genome1.common_adjacencies(genome2))
+    g = len(genome1.gene_set())
+    # n = np.math.sqrt(g)
+    n = g
+    if BP == n:
+        BP = n-1
+    # import ipdb;ipdb.set_trace()
+    return np.math.log(1.0 - (BP * (2.0*n - 1)) / (a * (2.0*n - 2))) / np.math.log(1 - (1.0 / (n - 1)) - 1.0 / n)
 
 
 def probability(n, cycle_dist, st):
@@ -156,11 +165,13 @@ if __name__ == '__main__':
         down = 0
         max_p = 0
         max_k = 0
-        print "Distance:%d" % d
-
-        for i in range(4*n):
+        # DCJ estimate:
+        est_DCJ = expected_dcj_distance(g1,g2)
+        print "Distance:%d" % d,
+        print " Estimate: %.1f" % est_DCJ
+        for i in range(2*n):
             prob = probability(n, cycle_distribution, d + i)
-            print "Steps:%d P:%e" % (d + i, prob)
+            print >> sys.stderr, "Steps:%d P:%e" % (d + i, prob)
             x.append(d + i)
             y.append(prob)
             if prob < last_step:
@@ -179,5 +190,5 @@ if __name__ == '__main__':
         print "Max:", max_k
         # save results:
         with open(filename+".ml", "w") as f:
-            print >> f, "DCJ\tML"
-            print >> f, "%d\t%d" % (d, max_k)
+            print >> f, "DCJ\tML\tEDCJ"
+            print >> f, "%d\t%d\t%.1f" % (d, max_k, est_DCJ)
