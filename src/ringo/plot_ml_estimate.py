@@ -1,27 +1,29 @@
 #!/usr/bin/env python2
 
 import matplotlib
-
 matplotlib.use('Agg')  # Force matplotlib to not use any Xwindows backend.
 import matplotlib.pyplot as plt
 
 n = 32
-data = {"dcj": [], "ml": []}
-step_range = range(4, 45, 4)
+data = {"dcj": [], "ml": [], "est":[]}
+step_range = range(4, 37, 4)
 for step in step_range:
 
     ml_rep_data = []
     dcj_rep_data = []
+    est_rep_data = []
     for rep in range(1, 11):
         with open("rw.n%d.step%d.rep%d/genomes.txt.ml" % (n, step, rep)) as f:
-            f.readline()
-            dcj, ml = map(int, f.readline().strip().split())
+            l = f.readline()
+            dcj, ml, est = map(float, f.readline().strip().split())
             dcj_rep_data.append(dcj)
             ml_rep_data.append(ml)
+            est_rep_data.append(est)
     data["dcj"].append(dcj_rep_data)
     data["ml"].append(ml_rep_data)
+    data["est"].append(est_rep_data)
 
-for t in ["ml", "dcj"]:
+for t in ["ml", "dcj", "est"]:
     plt.clf()
     plt.cla()
     plt.boxplot(data[t])
