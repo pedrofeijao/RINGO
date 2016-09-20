@@ -17,7 +17,7 @@ if __name__ == '__main__':
     parser.add_argument("-r", type=int, default=20, help="Number of repeats")
     param = parser.parse_args()
 
-    data = {"DCJ": [], "ML": [], "eDCJ": [], 'step': []}
+    data = {"DCJ": [], "ML": [], "eDCJ": [], "Avg": [], 'step': []}
     step_range = range(param.s, param.m, param.s)
     for step in step_range:
 
@@ -34,6 +34,7 @@ if __name__ == '__main__':
                 data["DCJ"].append(dcj - step)
                 data["ML"].append(ml - step)
                 data["eDCJ"].append(est - step)
+                data["Avg"].append((est+ml)/2 - step)
                 data["step"].append(step)
                 # data["dcj"].append(dcj_rep_data)
                 # data["ml"].append(ml_rep_data)
