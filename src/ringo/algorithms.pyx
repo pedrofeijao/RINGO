@@ -580,6 +580,7 @@ def __estimate_branch_lengths(tree, extant_genomes, method):
     Solve a min evolution Linear Program based on the DCJ-Indel distances
     between the leaves to
     """
+
     # index the edges:
     e_idx = 0
     # pairwise paths between leafs:
@@ -640,11 +641,15 @@ def __estimate_branch_lengths(tree, extant_genomes, method):
     # Apply the lengths in the tree:
     for e, x in zip(edges, result):
         e.length = x
-    # the edges from the root are "ambiguous", so each gets the average of the two;
+    # the edges from the root are "ambiguous", so each gets the average of the children;
     # from the solution, usually one gets zero and the other the full length;
-    node_1, node_2 = tree.seed_node.child_nodes()
-    avg = (node_1.edge.length + node_2.edge.length)/2.0
-    node_1.edge.length = node_2.edge.length = avg
+    # node_1, node_2 = tree.seed_node.child_nodes()
+    # avg = (node_1.edge.length + node_2.edge.length)/2.0
+    # node_1.edge.length = node_2.edge.length = avg
+    avg = np.mean([node.edge.length for node in tree.seed_node.child_nodes()])
+    for node in tree.seed_node.child_nodes():
+        node.edge.length = avg
+
     # that's it.
 
 def tree_diameter(tree):
