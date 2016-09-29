@@ -8,8 +8,6 @@ from dendropy import Tree
 import file_ops
 import algorithms
 import plot_bp
-from model import BPGraph, CType, Genome, Chromosome
-from pyx import canvas, style, color
 import sys
 
 
