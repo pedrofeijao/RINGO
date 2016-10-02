@@ -1,5 +1,6 @@
-from model import BPGraph, CType
+import math
 
+from model import BPGraph, CType
 
 def dcj_distance(genome1, genome2):
     # find BP graph:
