@@ -581,6 +581,9 @@ def __estimate_branch_lengths(tree, extant_genomes, method):
     between the leaves to
     """
 
+    # reset edge labels:
+    for edge in tree.preorder_edge_iter():
+        edge.label = None
     # index the edges:
     e_idx = 0
     # pairwise paths between leafs:
@@ -614,6 +617,7 @@ def __estimate_branch_lengths(tree, extant_genomes, method):
                     pw_paths[(node.label, k)] = [p.label for p in leaf_paths[current_node.label][k] + path]
             # store in this internal node the path from the leaf:
             leaf_paths[current_node.label][node.label] = list(path)
+
     # Now, with all the PW paths, create the LP:
     # min cx
     # s.a. Ax >= b   =>  -Ax <= -b   (the linprog package needs <= type of ineq.)
