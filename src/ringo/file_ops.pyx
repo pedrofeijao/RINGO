@@ -391,3 +391,11 @@ def write_ringo_parameters(param, output):
     except AttributeError:
       param.__dict__[p] = ""
   __write_parameters(param, os.path.join(output,cfg.ringo_output_parameters()))
+
+
+def write_adj_weights(adj_weight_filename, reconstructed, internalAdjWeight):
+    with open(adj_weight_filename, "w") as f:
+        for key, g in reconstructed.iteritems():
+            print >>f, ">%s" % key
+            for adj in g.adjacency_set():
+                print >>f, adj, internalAdjWeight[key][adj] if adj in internalAdjWeight[key] else 0

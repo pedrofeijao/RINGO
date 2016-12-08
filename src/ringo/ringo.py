@@ -191,6 +191,7 @@ if __name__ == '__main__':
     folder = param.output
     out_filename = os.path.join(folder, cfg.ringo_output_genomes())
     tree_out_filename = os.path.join(folder, cfg.ringo_output_tree())
+    adj_weight_filename = os.path.join(folder, cfg.ringo_output_adj_weight())
     if folder != "" and not os.path.exists(folder):
         os.mkdir(folder)
     file_ops.write_genomes_to_file(reconstructed, out_filename)
@@ -198,7 +199,10 @@ if __name__ == '__main__':
     # Save parameters:
     file_ops.write_ringo_parameters(param, folder)
 
-    # ancestral genomes:
+    # Save adjacency weight log:
+    file_ops.write_adj_weights(adj_weight_filename, reconstructed, internalAdjWeight)
+
+    # ancestral genomes for debug and BP:
     ancestral = file_ops.open_genome_file(param.ancestral) if param.ancestral is not None else None
     # BP graph plot:
     if param.bp:
