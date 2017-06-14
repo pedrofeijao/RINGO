@@ -133,8 +133,6 @@ def sort_cycle_with_one_freeze(n):
     return sum([f * n ** k / np.math.factorial(k) for k in range(n - 1)])/2
 
 
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Finds the ML estimate for the DCJ distance between 2 genomes.")
     parser.add_argument("-g", type=str, nargs='+', help="Genomes file(s)")

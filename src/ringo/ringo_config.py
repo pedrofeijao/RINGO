@@ -23,6 +23,9 @@ class RingoConfig(object):
     def ringo_output_parameters(self):
         return self.config.get("Filenames", "ringo_output_parameters")
 
+    def ringo_output_adj_weight(self):
+        return self.config.get("Filenames", "ringo_output_adj_weight")
+
     # DeClone
     def declone_path(self):
         return self.config.get("Paths", "declone_path")
@@ -78,6 +81,9 @@ class RingoConfig(object):
 
     def sim_events_file(self):
         return self.config.get("Filenames", "sim_events_file")
+
+    def sim_events_detailed_file(self):
+        return self.config.get("Filenames", "sim_events_detailed_file")
 
     def sim_mgra_config(self):
         return self.config.get("Filenames", "sim_mgra_config")
