@@ -21,7 +21,7 @@ from coser_to_summary import parse_coser_sol
 from dcj_dupindel import build_gene_copies_dict, CopyType
 
 time_regexp = re.compile('Solution time =\s+([\d\.]+)\s*sec.\s+Iterations')
-gap_regexp = re.compile('Current MIP best bound.+gap.+\s([\d.]+)%')
+gap_regexp = re.compile('Current MIP best bound.+gap.+\s([\d\.]+)%')
 obj_regexp = re.compile("objectiveValue=\"(.+)\"")
 balancing_regexp = re.compile("<variable name=\"w_([AB])(\d+)_(\d+)([ht]),([AB])(\d+)_(\d+)([ht]).*value=\"(.+)\"")
 matching_regexp = re.compile("<variable name=\"x_A(\d+)_(\d+)h,B(\d+)_(\d+)h.*value=\"(.+)\"")
@@ -32,17 +32,20 @@ matching_regexp = re.compile("<variable name=\"x_A(\d+)_(\d+)h,B(\d+)_(\d+)h.*va
 
 
 def parse_log_file(logfile):
-    with open(logfile) as f:
-        time = 0
-        gap = 0
-        for line in f:
-            m = time_regexp.match(line.strip())
-            if m is not None:
-                time = float(m.group(1))
+    time = 0
+    gap = 0
+    try:
+        with open(logfile) as f:
+            for line in f:
+                m = time_regexp.match(line.strip())
+                if m is not None:
+                    time = float(m.group(1))
 
-            m = gap_regexp.match(line.strip())
-            if m is not None:
-                gap = float(m.group(1))
+                m = gap_regexp.match(line.strip())
+                if m is not None:
+                    gap = float(m.group(1))
+    except Exception as e:
+        print "Did not read log file!"
     return gap, time
 
 
@@ -174,32 +177,31 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Creates a summary file from a list of folders for DCJdupindel simulations.")
     parser.add_argument("folders", type=str, nargs="+", help="Sim folders.")
-    parser.add_argument("-out", type=str, default="dcj_summary", help="prefix filename for output.")
+    parser.add_argument("-out", type=str, default="summary.txt", help="Filename for output.")
     parser.add_argument("-coser", action="store_true", default=False, help="Outputs also a COSER summary.")
     parser.add_argument("-sb", "--skip_balancing", action="store_true", default=False,
                         help="Uses the no balancing ILP.")
     param = parser.parse_args()
     # Ringo_config:
     cfg = ringo_config.RingoConfig()
-    sim_cols = ["real_distance"]  # ["dup_length", "dup_prob"]
+    sim_cols = ["caller", "real_distance", "dup_length", "dup_prob", "del_prob"]
     tree_events = ["%s_%s" % (g, event) for g in ["T1", "T2"] for event in EventType.all]
     time_ortho = ["time", "gap", "ortho_TP", "ortho_FP", "ortho_FN"]
 
-    fields = sim_cols + tree_events + ["dcj_distance", "dup_a", "dup_b"] + time_ortho + ["bal_A", "bal_B"]
-    coser_fields = sim_cols + tree_events + ["dcj_distance", "dup_a", "dup_b"] + time_ortho
+    fields = sim_cols + tree_events + ["dcj_distance", "distance_diff", "dup_a", "dup_b"] + time_ortho + ["bal_A", "bal_B"]
 
     results = collections.defaultdict(list)
-    coser_results = collections.defaultdict(list)
+    results = []
     for folder in param.folders:
         # sim data:
         sim = Simulation.open_folder(folder)
         p = sim.sim_parameters
         result = {
-            # "dup_length": "%d" % sim.sim_parameters.duplication_length,
-            #       "dup_prob": "%.2f" % sim.sim_parameters.duplication_p, "folder": folder,
-            #       "del_prob": "%.2f" % sim.sim_parameters.deletion_p
+              "dup_length": sim.sim_parameters.duplication_length,
+              "dup_prob": sim.sim_parameters.duplication_p,
+              "del_prob": sim.sim_parameters.deletion_p
         }
-        key = "L%(duplication_length)s_dup%(duplication_p)s_del%(deletion_p)s" % p.__dict__
+        # key = "L%(duplication_length)s_dup%(duplication_p)s_del%(deletion_p)s" % p.__dict__
         # tree events:
         tree_events = {"%s_%s" % (g, event): sim.sim_tree.find_node_with_label(g).edge.events[event] for g in
                        ["T1", "T2"] for
@@ -207,8 +209,14 @@ if __name__ == '__main__':
         result.update(tree_events)
         result["real_distance"] = sum(map(int, tree_events.values()))
 
-        # coser is the same until here:
+        # coser and nobal is the same until here:
         coser_result = dict(result)
+        no_bal_result = dict(result)
+
+        # caller:
+        result["caller"] = "ILP"
+        coser_result["caller"] = "SegDCJ"
+        no_bal_result["caller"] = "ILP_NB"
 
         # distance/rearrangement results:
         genomes = file_ops.open_genomes_with_copy_number(os.path.join(folder, cfg.sim_extant_genomes()))
@@ -216,21 +224,24 @@ if __name__ == '__main__':
 
         # if it has balancing edges, we can find the indels by adding the bal edges and the "gene" edges
         # and each connected component is a circular chromosome in the completion.
-        if not param.skip_balancing:
-            sol_file = os.path.join(folder, "extant_genomes.txt_T2_T1.lp.sol")
-            if not os.path.exists(sol_file):
-                continue
-            r = parse_ilp_sol(sol_file)
-        else:
+        sol_file = os.path.join(folder, "extant_genomes.txt_T2_T1.lp.sol")
+        if not os.path.exists(sol_file):
+            print ("%s does not exist, skipping ..." % sol_file)
+            continue
+        r = parse_ilp_sol(sol_file)
+        result.update(r)
+        result["distance_diff"] = result["real_distance"] - result["dcj_distance"]
+        if param.skip_balancing:
             # without balancing edges, we have to create the master graph and check which type of
             # open components we get (AA-, BB- or AB-), and then merge them into cycles; AA and BB
             # are unique, but AB- are paired arbitrarly.
-            sol_file = os.path.join(folder, "extant_genomes.txt_T2_T1_nobal.lp.sol")
-            if not os.path.exists(sol_file):
+            sol_file_no_bal = os.path.join(folder, "extant_genomes.txt_T2_T1_nobal.lp.sol")
+            if not os.path.exists(sol_file_no_bal):
+                print ("%s does not exist, skipping ..." % sol_file_no_bal)
                 continue
-            r = parse_nobal_ilp_sol(sol_file, genomes[0], genomes[1])
-
-        result.update(r)
+            r = parse_nobal_ilp_sol(sol_file_no_bal, genomes[0], genomes[1])
+            no_bal_result.update(r)
+            no_bal_result["distance_diff"] = no_bal_result["real_distance"] - no_bal_result["dcj_distance"]
         # Orthology:
         # open genomes to get the correct matching:
         # correct_matching = build_correct_matching(genomes[0], genomes[1])
@@ -244,10 +255,19 @@ if __name__ == '__main__':
         #
         # get solution matching:
         solution_matching = solution_matching_ilp(sol_file)
+        if param.skip_balancing:
+            no_bal_solution_matching = solution_matching_ilp(sol_file_no_bal)
+
         # compare:
         tp, fp, fn = parse_orthology_quality(solution_matching, correct_matching)
         n_assignments = sum([len(x) for x in correct_matching.itervalues()])
         result.update({"ortho_TOTAL": n_assignments, "ortho_TP": len(tp), "ortho_FP": len(fp), "ortho_FN": len(fn)})
+
+        if param.skip_balancing:
+            tp, fp, fn = parse_orthology_quality(solution_matching, no_bal_solution_matching)
+            n_assignments = sum([len(x) for x in correct_matching.itervalues()])
+            no_bal_result.update({"ortho_TOTAL": n_assignments, "ortho_TP": len(tp), "ortho_FP": len(fp), "ortho_FN": len(fn)})
+
 
         # balancing genes:
         # since the gene set might be different for each genome, find all genes:
@@ -262,31 +282,30 @@ if __name__ == '__main__':
 
         result["bal_A"] = bal["A"]
         result["bal_B"] = bal["B"]
-        # keep result
-        results[key].append(result)
+        if param.skip_balancing:
+            no_bal_result["bal_A"] = bal["A"]
+            no_bal_result["bal_B"] = bal["B"]
+        if param.coser:
+            coser_result["bal_A"] = "NA"
+            coser_result["bal_B"] = "NA"
+
+        # save keep result:
+        # results[key].append(result)
+        results.append(result)
+        if param.skip_balancing:
+            results.append(no_bal_result)
+
         # COSER:
         if param.coser:
             if os.path.exists(os.path.join(folder, "mapping")):
                 coser_result.update(parse_coser_sol(folder, correct_matching))
                 coser_result["ortho_TOTAL"] = n_assignments
-                coser_results[key].append(coser_result)
+                coser_result["distance_diff"] = coser_result["real_distance"] - coser_result["dcj_distance"]
+                results.append(coser_result)
 
     # output:
-    # DCJDUP:
-    dcj_out = param.out
-    if param.skip_balancing:
-        dcj_out += "_nobal"
-    for key, result in results.iteritems():
-        with open("%s_%s.txt" % (dcj_out, key), "w") as f:
-            print >> f, "\t".join(fields)
-            # for line in sorted(result, key=lambda r: (r['dup_length'], r["dup_prob"], r["real_distance"])):
-            for line in sorted(result, key=lambda r: r["real_distance"]):
-                print >> f, "\t".join([str(line[field]) for field in fields])
-    # COSER:
-    if param.coser:
-        for key, result in coser_results.iteritems():
-            with open("coser_%s_%s.txt" % (param.out, key), "w") as f:
-                print >> f, "\t".join(coser_fields)
-                # for line in sorted(result, key=lambda r: (r['dup_length'], r["dup_prob"], int(r["real_distance"]))):
-                for line in sorted(result, key=lambda r: r["real_distance"]):
-                    print >> f, "\t".join([str(line[field]) for field in coser_fields])
+    with open(param.out, "w") as f:
+        print >> f, "\t".join(fields)
+        # ILP
+        for result in sorted(results, key=lambda r: (r["dup_length"], r["dup_prob"])):
+            print >> f, "\t".join([str(result[field]) for field in fields])
