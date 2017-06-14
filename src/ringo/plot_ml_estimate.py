@@ -37,9 +37,8 @@ if __name__ == '__main__':
                 data["Real Distance"].append(step)
 
     # PANDA:
+    del data["DCJ"]
     df = pd.DataFrame.from_dict(data)
-    df.boxplot(by='Real Distance')
-    fig = matplotlib.pyplot.gcf()
-    fig.set_size_inches(16, 10)
+    df.boxplot(by='Real Distance', layout=(3,1), figsize=(14,10))
     plt.savefig('rw_%s_results.pdf' % param.n, bbox_inches='tight')
 

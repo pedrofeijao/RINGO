@@ -179,7 +179,7 @@ if __name__ == '__main__':
             random.shuffle(cycle_distribution)
             cycle = cycle_distribution.pop()
             cycle_distribution = tuple(sorted([1, cycle - 1] + cycle_distribution))
-        for i in range(2*n):
+        for i in range(3*n):
             prob = probability(n, cycle_distribution, d + i)
             print >> sys.stderr, "Steps:%d P:%e" % (d + i, prob)
             x.append(d + i)
