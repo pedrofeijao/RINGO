@@ -38,8 +38,12 @@ ringo.py -i <GENOME_FILE> -t <TREE_FILE> -o <OUTPUT_FOLDER>
 
 The genome file should be in the commonly used GRIMM format (more input formats are available), and the tree in Newick format.
 The output folder will be created if not existent already, and the following files are created as output:
-* `ringo_genomes_custom_weight.txt`: Ancestral genomes file. Genome names correspond to the internal nodes of the tree.
+* `ringo_genomes.txt`: Ancestral genomes file. Genome names correspond to the internal nodes of the tree.
 * `ringo_tree.nwk`: Newick tree. Should be the same as the input tree, possibly with new labels for the internal nodes if they were empty on the input tree.
+
+Additional files:
+* `ringo_adj_weight_output.txt`: File with the adjacency weights used on each internal node.
+* `ringo_parameters.json`: Parameters used on this RINGO run.
 
 #### Examples
 
