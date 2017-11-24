@@ -61,6 +61,14 @@ def open_mgra_genomes(folder):
                     genome.add_chromosome(Chromosome(map(int, line[:-1].strip().split(" ")), circular=False))
     return genomes
 
+def check_gene_duplicates(gene_list):
+    seen = set()
+    duplicates = []
+    for gene in [abs(gene_with_sign) for gene_with_sign in gene_list]:
+      if gene in seen:
+        duplicates.append(gene)
+      seen.add(gene)
+    return duplicates
 
 def open_genome_file(filename, as_list=False):
     """
@@ -105,7 +113,11 @@ def open_genome_file(filename, as_list=False):
                     circular = True
                 else:
                     raise RuntimeError("Invalid genome file %s. Unrecognized line:\n%s" % (filename, line))
-                genome.add_chromosome(Chromosome(map(int, re.split("\s+",line[:-1].strip())), circular))
+                genes = map(int, re.split("\s+",line[:-1].strip()))
+                duplicates = check_gene_duplicates(genes)
+                if len(duplicates) > 0:
+                  raise RuntimeError("Duplicated gene(s) %s on genome %s!\nIn the current version, RINGO cannot deal with duplicated genes. Please remove extra copies to be able to run RINGO on these genomes." % (duplicates, name))
+                genome.add_chromosome(Chromosome(genes, circular))
 
     return genomes
 
