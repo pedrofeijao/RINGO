@@ -2,6 +2,7 @@ __author__ = 'pfeijao'
 
 import glob
 import os
+import re
 from model import Genome, Chromosome
 from dendropy import Tree
 import ringo_config
@@ -104,7 +105,7 @@ def open_genome_file(filename, as_list=False):
                     circular = True
                 else:
                     raise RuntimeError("Invalid genome file %s. Unrecognized line:\n%s" % (filename, line))
-                genome.add_chromosome(Chromosome(map(int, line[:-1].strip().split(" ")), circular))
+                genome.add_chromosome(Chromosome(map(int, re.split("\s+",line[:-1].strip())), circular))
 
     return genomes
 
