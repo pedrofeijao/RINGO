@@ -7,7 +7,7 @@ decorator==4.0.9
 DendroPy==4.1.0
 gnureadline==6.3.3
 networkx==1.11
-numpy==1.11.0
+numpy>=1.22
 pathlib2==2.1.0
 pexpect==4.1.0
 pickleshare==0.7.2
