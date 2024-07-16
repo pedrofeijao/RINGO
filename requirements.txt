@@ -19,3 +19,4 @@ six==1.10.0
 tabulate==0.7.5
 traitlets==4.2.1
 wheel==0.24.0
+setuptools>=70.0.0 # not directly required, pinned by Snyk to avoid a vulnerability
